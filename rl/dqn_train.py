@@ -21,6 +21,7 @@ import envs  # noqa
 from envs.cpp_env_v2 import CppEnvironment
 from torchrl_utils import CustomVideoRecorder
 from torchrl_utils import eval_model, make_dqn_model, make_env
+from torchrl_utils.custom_dqn_loss import CustomDQNLoss, value_rescale_inv
 
 base_dir = Path(__file__).parent.parent
 nvec = CppEnvironment.nvec
@@ -101,10 +102,10 @@ def main(cfg: "DictConfig"):  # noqa: F821
     # ),
 
     # Create the loss module
-    loss_module = DQNLoss(
+    loss_module = CustomDQNLoss(
         value_network=model,
-        # loss_function="l2",
-        loss_function="smooth_l1",
+        loss_function="l2",
+        # loss_function="smooth_l1",
         delay_value=True,
         double_dqn=True,
     )
@@ -221,7 +222,9 @@ def main(cfg: "DictConfig"):  # noqa: F821
         # Get and log q-values, loss, epsilon, sampling time and training time
         log_info.update(
             {
-                "train/q_values": (data["action_value"] * data["action"]).sum().item()
+                "train/q_values": value_rescale_inv((data["action_value"] * data["action"]).sum()).item()
+                                  / frames_per_batch,
+                "train/q_logits": (data["action_value"] * data["action"]).sum().item()
                                   / frames_per_batch,
                 "train/q_loss": q_losses.mean().item(),
                 "train/epsilon": greedy_module.eps,

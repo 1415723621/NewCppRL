@@ -10,7 +10,7 @@ import gymnasium as gym
 import numpy as np
 import torch
 import torch.nn.functional as F
-from cpu_apf import cpu_apf_bool
+from cpu_apf import cpu_apf_bool  # noqa
 from gymnasium.error import DependencyNotInstalled
 from gymnasium.wrappers import HumanRendering
 from numpy import ndarray
@@ -36,8 +36,8 @@ class CppEnvironment(gym.Env):
 
     obstacle_size_range = (10, 40)
 
-    render_repeat_times = 3
-    render_farmland_outsides = False
+    render_repeat_times = 1
+    render_farmland_outsides = True
 
     def __init__(
             self,
@@ -172,7 +172,7 @@ class CppEnvironment(gym.Env):
         cv2.line(self.map_trajectory, pt1=(x_t, y_t), pt2=(x_tp1, y_tp1), color=(1.,))
         reward = self.get_reward(steer, x_t, y_t, x_tp1, y_tp1)
         if crashed:
-            reward -= 100.
+            reward -= 200.
         self.t += 1
         time_out = self.t == 2000
         finish = self.weed_num_t == 0 and self.frontier_area_t == 0
@@ -197,7 +197,7 @@ class CppEnvironment(gym.Env):
                                                 or (steer_tp1 == 0 and self.steer_t == 0))
                                          else 1.)
         reward_turn_self = 0.25 * (0.4 - abs(steer_tp1 / self.w_range.max) ** 0.5)
-        reward_turn = 0.3 * (reward_turn_gap
+        reward_turn = 1.5 * (reward_turn_gap
                              + reward_turn_direction
                              + reward_turn_self
                              )
@@ -205,11 +205,11 @@ class CppEnvironment(gym.Env):
         reward_frontier_coverage = (self.frontier_area_t - frontier_area_tp1) / (
                 2 * MowerAgent.width * self.v_range.max)
         reward_frontier_tv = 0.25 * (self.frontier_tv_t - frontier_tv_tp1) / self.v_range.max
-        reward_frontier = 0.5 * (reward_frontier_coverage
+        reward_frontier = 3.0 * (reward_frontier_coverage
                                  + reward_frontier_tv
                                  )
         # Weed
-        reward_weed = 0.7 * (weed_num_tp1 - self.weed_num_t)
+        reward_weed = 5.0 * (weed_num_tp1 - self.weed_num_t)
         # Apf
         reward_apf_frontier = 1.0 * (self.obs_apf[0][y_tp1, x_tp1] - self.obs_apf[0][y_t, x_t])
         reward_apf_obstacle = -2.0 * (self.obs_apf[1][y_tp1, x_tp1] - self.obs_apf[1][y_t, x_t])
@@ -219,10 +219,10 @@ class CppEnvironment(gym.Env):
             reward_apf_obstacle = 0.
         if reward_apf_trajectory >= 0.:
             reward_apf_trajectory = 0.
-        reward_apf = 5 * (reward_apf_frontier
-                          + reward_apf_obstacle
-                          + reward_apf_weed
-                          + reward_apf_trajectory)
+        reward_apf = 10.0 * (reward_apf_frontier
+                             + reward_apf_obstacle
+                             + reward_apf_weed
+                             + reward_apf_trajectory)
         # Summary
         reward = (reward_const
                   + reward_frontier
