@@ -1,0 +1,68 @@
+from pathlib import Path
+
+import gymnasium as gym
+import numpy as np
+import torch
+import yaml
+from gymnasium.wrappers import HumanRendering
+from omegaconf import DictConfig
+from torchrl.envs.utils import ExplorationType, set_exploration_type
+
+import envs  # noqa
+
+base_dir = Path(__file__).parent.parent
+cfg = DictConfig(yaml.load(open(f'{base_dir}/configs/env_config.yaml'), Loader=yaml.FullLoader))
+episodes = 10
+render = True
+
+device = 'cpu'
+# pt_path = f'../ckpt/train/2024-07-24_22-24-21_Apf/t[01000]_r[1281.04].pt'
+pt_path = f'../ckpt/train/2024-08-21_13-01-20_NegativeRewards/t[00150]_r[-2314.90].pt'
+# pt_path = f'../ckpt/train/2024-07-24_06-14-40_NoCrossTrajPenalty/t[00350]_r[211.46].pt'
+model = torch.load(pt_path).to(device)
+actor = model[0]
+
+env = gym.make(
+    render_mode='rgb_array' if render else None,
+    **cfg.env.params,
+)
+if render:
+    env = HumanRendering(env)
+
+costs = []
+
+with set_exploration_type(ExplorationType.MODE), torch.no_grad():
+    i = 0
+    failed_count = 0
+    while i < episodes:
+        obs, info = env.reset()
+        done = False
+        ret = 0.
+        max_r = -100.
+        t = 0
+        while not done:
+            if isinstance(obs, dict):
+                observation = obs['observation']
+                vector = obs['vector']
+            observation = torch.from_numpy(observation).float().to(device).unsqueeze(0)
+            vector = torch.tensor([vector]).float().to(device).unsqueeze(0)
+            # print(obs)
+            # print(observation[0, 5:8])
+            # Get Output
+            action = actor(observation=observation, vector=vector)
+            # print(action[0])
+            action = action[0].argmax()
+            action = int(action)
+            # print(action)
+            obs, reward, done, _, info = env.step(action)
+            max_r = max(max_r, reward)
+            t += 1
+            ret += 0.99 ** t * reward
+            print(f'{t:04d} | {reward:.3f}, {ret:.3f}')
+            if render:
+                env.render()
+        print(f'Max r: {max_r}')
+env.close()
+costs = np.array(costs)
+print(f'{costs.mean()} +- {costs.std()}')
+print(f'{failed_count} / {i + failed_count} = {failed_count / (i + failed_count)}')
