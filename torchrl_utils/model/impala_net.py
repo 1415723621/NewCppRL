@@ -16,7 +16,7 @@ class _ResNetBlock(nn.Module):
     ):
         super(_ResNetBlock, self).__init__()
         resnet_block = []
-        resnet_block.append(nn.ReLU(inplace=False))
+        resnet_block.append(nn.ELU(inplace=False))
         resnet_block.append(
             nn.Conv2d(
                 in_channels=num_in,
@@ -26,7 +26,7 @@ class _ResNetBlock(nn.Module):
                 padding=1,
             )
         )
-        resnet_block.append(nn.ReLU(inplace=False))
+        resnet_block.append(nn.ELU(inplace=False))
         resnet_block.append(
             nn.Conv2d(
                 in_channels=num_ch,
@@ -39,8 +39,8 @@ class _ResNetBlock(nn.Module):
         self.seq = nn.Sequential(*resnet_block)
 
     def forward(self, x):
-        x += self.seq(x)
-        return x
+        y = x + self.seq(x)
+        return y
 
 
 class _ConvNetBlock(nn.Module):

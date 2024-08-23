@@ -1,7 +1,7 @@
 device: null
 #pretrained_model: ckpt/train/2024-08-20_04-34-49_Apf/t[01700]_r[316.39].pt
 pretrained_model: null
-ckpt_name: NegativeRewards
+ckpt_name: CnnElu
 
 # collector
 collector:
@@ -12,6 +12,7 @@ collector:
   eps_end: 0.05
   annealing_frames: 500_000
   init_random_frames: 10_000
+#  init_random_frames: 500
 
 # buffer
 buffer:
@@ -20,8 +21,8 @@ buffer:
 
 # Optim
 optim:
-  lr: 2.5e-4
-  max_grad_norm: 10
+  lr: 3.0e-4
+  max_grad_norm: 40
 
 # loss
 loss:
@@ -35,5 +36,6 @@ logger:
   model_name: DQN
   exp_name: Train
   test_interval: 50_000
+#  test_interval: 20_000
   test_steps: 2_000
   video: True

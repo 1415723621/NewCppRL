@@ -5,7 +5,6 @@ from pathlib import Path
 
 import torch.nn
 import torch.optim
-import torchrl.data.replay_buffers
 import tqdm
 import yaml
 from omegaconf import DictConfig
@@ -15,13 +14,13 @@ from torchrl.collectors import MultiaSyncDataCollector
 from torchrl.data import TensorDictPrioritizedReplayBuffer, LazyMemmapStorage
 from torchrl.envs import ExplorationType, set_exploration_type
 from torchrl.modules import EGreedyModule
-from torchrl.objectives import DQNLoss, HardUpdate, SoftUpdate, ValueEstimators
+from torchrl.objectives import DQNLoss, HardUpdate
 from torchrl.record.loggers import get_logger
 
-from torchrl_utils import CustomVideoRecorder
-from torchrl_utils import eval_model, make_dqn_model, make_env
 import envs  # noqa
 from envs.cpp_env_v2 import CppEnvironment
+from torchrl_utils import CustomVideoRecorder
+from torchrl_utils import eval_model, make_dqn_model, make_env
 
 base_dir = Path(__file__).parent.parent
 nvec = CppEnvironment.nvec
@@ -123,7 +122,7 @@ def main(cfg: "DictConfig"):  # noqa: F821
     )
 
     # Create the optimizer
-    optimizer = torch.optim.Adam(loss_module.parameters(), lr=cfg.optim.lr)
+    optimizer = torch.optim.AdamW(loss_module.parameters(), lr=cfg.optim.lr)
 
     # Create the logger
     logger = None

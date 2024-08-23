@@ -24,7 +24,7 @@ class ConvEncoder(nn.Module):
                 in_ch, cnn_channels[i], kernel_size=kernel_sizes[i], stride=strides[i]
             )]
             in_ch = cnn_channels[i]
-        layers += [torch.nn.ReLU(inplace=True), SquashDims()]
+        layers += [torch.nn.ELU(inplace=True), SquashDims()]
         self.cnn_encoder = torch.nn.Sequential(*layers)
         cnn_output = self.cnn_encoder(torch.ones(raster_shape))
         self.post_encoder = nn.Sequential(

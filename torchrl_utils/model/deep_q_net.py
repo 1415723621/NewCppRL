@@ -4,7 +4,6 @@ from torch import nn
 
 from torchrl_utils.model.conv_encoder import ConvEncoder
 from torchrl_utils.model.dueling_head import DuelingHead
-from torchrl_utils.model.inverse_dynamics import InverseDynamic
 
 
 class DeepQNet(nn.Module):

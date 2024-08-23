@@ -36,7 +36,8 @@ class CppEnvironment(gym.Env):
 
     obstacle_size_range = (10, 40)
 
-    render_repeat_times = 1
+    render_repeat_times = 3
+    render_farmland_outsides = False
 
     def __init__(
             self,
@@ -368,21 +369,22 @@ class CppEnvironment(gym.Env):
             np.array((255, 38, 255)),
             rendered_map,
         )
-        tv_frontier_expose = np.logical_and(tv_frontier, self.map_mist)
-        rendered_map = np.where(
-            np.expand_dims(tv_frontier_expose, axis=-1),
-            np.array((0, 255, 255)),
-            rendered_map,
-        )
-        frontier_apf_out = np.where(self.obs_apf[0] >= 0, self.obs_apf[0], 0.)
-        rendered_map = np.where(
-            np.expand_dims(frontier_apf_out, axis=-1),
-            (
-                    np.expand_dims(frontier_apf_out, axis=-1) * np.array((255, 38, 255))
-                    + np.expand_dims(1 - frontier_apf_out, axis=-1) * rendered_map
-            ).astype(np.uint8),
-            rendered_map,
-        )
+        # tv_frontier_expose = np.logical_and(tv_frontier, self.map_mist)
+        # rendered_map = np.where(
+        #     np.expand_dims(tv_frontier_expose, axis=-1),
+        #     np.array((0, 255, 255)),
+        #     rendered_map,
+        # )
+        if self.render_farmland_outsides:
+            frontier_apf_out = np.where(self.obs_apf[0] >= 0, self.obs_apf[0], 0.)
+            rendered_map = np.where(
+                np.expand_dims(frontier_apf_out, axis=-1),
+                (
+                        np.expand_dims(frontier_apf_out, axis=-1) * np.array((255, 38, 255))
+                        + np.expand_dims(1 - frontier_apf_out, axis=-1) * rendered_map
+                ).astype(np.uint8),
+                rendered_map,
+            )
         frontier_apf_in = np.where(self.obs_apf[0] < 0, -self.obs_apf[0], 0.)
         rendered_map = np.where(
             np.expand_dims(frontier_apf_in, axis=-1),

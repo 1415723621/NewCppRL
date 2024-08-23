@@ -17,8 +17,8 @@ render = True
 
 device = 'cpu'
 # pt_path = f'../ckpt/train/2024-07-24_22-24-21_Apf/t[01000]_r[1281.04].pt'
-pt_path = f'../ckpt/train/2024-08-21_13-01-20_NegativeRewards/t[00150]_r[-2314.90].pt'
-# pt_path = f'../ckpt/train/2024-07-24_06-14-40_NoCrossTrajPenalty/t[00350]_r[211.46].pt'
+# pt_path = f'../ckpt/train/2024-08-21_13-01-20_NegativeRewards/t[00150]_r[-2314.90].pt'
+pt_path = f'../ckpt/train/2024-08-20_04-34-49_Apf/t[01700]_r[316.39].pt'
 model = torch.load(pt_path).to(device)
 actor = model[0]
 
@@ -28,6 +28,9 @@ env = gym.make(
 )
 if render:
     env = HumanRendering(env)
+# reset_options = {
+#     'obstacle'
+# }
 
 costs = []
 
