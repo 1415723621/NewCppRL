@@ -133,7 +133,7 @@ def main(cfg: "DictConfig"):  # noqa: F821
         if cfg.logger.backend == 'wandb':
             logger = get_logger(
                 cfg.logger.backend,
-                logger_name=f'{base_dir}/ckpt/{algo_name}',
+                logger_name=f'{base_dir}/ckpt',
                 experiment_name=ckpt_dir,
                 wandb_kwargs={
                     "config": dict(cfg),
@@ -142,7 +142,7 @@ def main(cfg: "DictConfig"):  # noqa: F821
         else:
             logger = get_logger(
                 cfg.logger.backend,
-                logger_name=f'{base_dir}/ckpt/{algo_name}',
+                logger_name=f'{base_dir}/ckpt',
                 experiment_name=ckpt_dir,
             )
 
