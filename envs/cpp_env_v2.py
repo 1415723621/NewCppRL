@@ -36,8 +36,8 @@ class CppEnvironment(gym.Env):
 
     obstacle_size_range = (10, 40)
 
-    render_repeat_times = 1
-    render_farmland_outsides = True
+    render_repeat_times = 3
+    render_farmland_outsides = False
 
     def __init__(
             self,

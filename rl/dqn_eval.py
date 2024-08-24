@@ -18,9 +18,11 @@ render = True
 device = 'cpu'
 # pt_path = f'../ckpt/train/2024-07-24_22-24-21_Apf/t[01000]_r[1281.04].pt'
 # pt_path = f'../ckpt/train/2024-08-21_13-01-20_NegativeRewards/t[00150]_r[-2314.90].pt'
-pt_path = f'../ckpt/train/2024-08-20_04-34-49_Apf/t[01700]_r[316.39].pt'
+pt_path = f'../ckpt/train/2024-08-24_03-56-49_CnnElu/t[01650]_r[1215.28].pt'
 model = torch.load(pt_path).to(device)
 actor = model[0]
+
+cfg.env.params.num_obstacles_range = [0, 0]
 
 env = gym.make(
     render_mode='rgb_array' if render else None,
