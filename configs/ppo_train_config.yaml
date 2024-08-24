@@ -12,6 +12,8 @@ collector:
 # Optim
 optim:
   lr: 3.0e-4
+  eps: 1.0e-6
+  weight_decay: 0.0
   max_grad_norm: 0.5
   anneal_lr: False
 
@@ -21,8 +23,8 @@ loss:
   mini_batch_size: 512
   ppo_epochs: 8
   gae_lambda: 0.95
-  clip_epsilon: 0.15
-  anneal_clip_epsilon: False
+  clip_epsilon: 0.4
+  anneal_clip_epsilon: True
   critic_coef: 1.0
   entropy_coef: 0.01
   loss_critic_type: l2

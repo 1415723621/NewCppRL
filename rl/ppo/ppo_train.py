@@ -45,6 +45,7 @@ base_dir = Path(__file__).parent.parent.parent
 nvec = CppEnvironment.nvec
 algo_name = 'ppo'
 
+
 def main(cfg: "DictConfig"):  # noqa: F821
     ckpt_dir = time.strftime('%Y-%m-%d_%H-%M-%S', time.localtime())
     if cfg.ckpt_name:
@@ -129,7 +130,10 @@ def main(cfg: "DictConfig"):  # noqa: F821
     )
 
     # Create the optimizer
-    optimizer = torch.optim.AdamW(loss_module.parameters(), lr=cfg.optim.lr)
+    optimizer = torch.optim.Adam(loss_module.parameters(),
+                                 lr=cfg.optim.lr,
+                                 eps=cfg.optim.eps,
+                                 weight_decay=cfg.optim.weight_decay, )
 
     # Create the logger
     logger = None
@@ -179,7 +183,7 @@ def main(cfg: "DictConfig"):  # noqa: F821
     num_mini_batches = math.ceil(cfg.collector.frames_per_batch / cfg.loss.mini_batch_size)
     num_network_updates = 0
     total_network_updates = (
-        cfg.collector.total_frames * cfg.loss.ppo_epochs * num_mini_batches
+            cfg.collector.total_frames * cfg.loss.ppo_epochs * num_mini_batches
     )
 
     cfg_loss_ppo_epochs = cfg.loss.ppo_epochs
@@ -218,7 +222,7 @@ def main(cfg: "DictConfig"):  # noqa: F821
             {
                 "train/reward": episode_rewards.mean().item(),
                 "train/episode_length": episode_length.sum().item()
-                / len(episode_length),
+                                        / len(episode_length),
             }
         )
 
@@ -242,6 +246,7 @@ def main(cfg: "DictConfig"):  # noqa: F821
                         group["lr"] = cfg_optim_lr * alpha
                 num_network_updates += 1
                 if cfg_loss_anneal_clip_eps:
+                    target_clip_eps = max(0.1, cfg_loss_clip_epsilon * alpha)
                     loss_module.clip_epsilon.copy_(cfg_loss_clip_epsilon * alpha)
                 # Get a data batch
                 batch = batch.to(device, non_blocking=True)
@@ -252,7 +257,7 @@ def main(cfg: "DictConfig"):  # noqa: F821
                     "loss_critic", "loss_entropy", "loss_objective"
                 ).detach()
                 loss_sum = (
-                    loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
+                        loss["loss_critic"] + loss["loss_objective"] + loss["loss_entropy"]
                 )
                 # Backward pass
                 loss_sum.backward()
