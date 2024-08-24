@@ -5,7 +5,7 @@ env:
     action_type: discrete
     state_size: !!python/tuple [128, 128]
     state_downsize: !!python/tuple [128, 128]
-    num_obstacles_range: !!python/tuple [3, 8]
+    num_obstacles_range: !!python/tuple [0, 8]
     use_sgcnn: True
     use_global_obs: True
     map_dir: envs/maps/1-400

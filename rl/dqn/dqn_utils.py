@@ -1,6 +1,5 @@
-import torch
 from torchrl.data import CompositeSpec
-from torchrl.modules import QValueActor, MLP
+from torchrl.modules import QValueActor
 
 from torchrl_utils.model.deep_q_net import DeepQNet
 from torchrl_utils.utils_env import make_env

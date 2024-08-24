@@ -16,13 +16,13 @@ episodes = 10
 render = True
 
 device = 'cpu'
-# pt_path = f'../ckpt/train/2024-07-24_22-24-21_Apf/t[01000]_r[1281.04].pt'
-# pt_path = f'../ckpt/train/2024-08-21_13-01-20_NegativeRewards/t[00150]_r[-2314.90].pt'
-pt_path = f'../ckpt/train/2024-08-24_03-56-49_CnnElu/t[01650]_r[1215.28].pt'
+# pt_path = f'../ckpt/train/2024-08-24_03-56-49_CnnElu/t[00400]_r[1650.20].pt'
+# pt_path = f'../ckpt/train/2024-08-24_03-56-49_CnnElu/t[01650]_r[1215.28].pt'
+pt_path = f'../../ckpt/dqn/2024-08-24_12-19-11_CnnElu/t[02250]_r[-772.48].pt'
 model = torch.load(pt_path).to(device)
 actor = model[0]
 
-cfg.env.params.num_obstacles_range = [0, 0]
+# cfg.env.params.num_obstacles_range = [0, 0]
 
 env = gym.make(
     render_mode='rgb_array' if render else None,

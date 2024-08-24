@@ -19,13 +19,18 @@ from torchrl.record.loggers import get_logger
 
 import envs  # noqa
 from envs.cpp_env_v2 import CppEnvironment
-from torchrl_utils import CustomVideoRecorder
-from torchrl_utils import eval_model, make_dqn_model, make_env
-from torchrl_utils.custom_dqn_loss import CustomDQNLoss, value_rescale_inv
+from rl.dqn.dqn_utils import make_dqn_model
+from torchrl_utils import (
+    CustomVideoRecorder,
+    CustomDQNLoss,
+    value_rescale_inv,
+    make_env,
+    eval_model
+)
 
-base_dir = Path(__file__).parent.parent
+base_dir = Path(__file__).parent.parent.parent
 nvec = CppEnvironment.nvec
-
+algo_name = 'dqn'
 
 def main(cfg: "DictConfig"):  # noqa: F821
     ckpt_dir = time.strftime('%Y-%m-%d_%H-%M-%S', time.localtime())
@@ -33,10 +38,10 @@ def main(cfg: "DictConfig"):  # noqa: F821
         ckpt_dir += f'_{cfg.ckpt_name}'
     if not Path(f'{base_dir}/ckpt').exists():
         os.mkdir(f'{base_dir}/ckpt')
-    if not Path(f'{base_dir}/ckpt/train').exists():
-        os.mkdir(f'{base_dir}/ckpt/train')
-    if not Path(f'{base_dir}/ckpt/train/{ckpt_dir}').exists():
-        os.mkdir(f'{base_dir}/ckpt/train/{ckpt_dir}')
+    if not Path(f'{base_dir}/ckpt/{algo_name}').exists():
+        os.mkdir(f'{base_dir}/ckpt/{algo_name}')
+    if not Path(f'{base_dir}/ckpt/{algo_name}/{ckpt_dir}').exists():
+        os.mkdir(f'{base_dir}/ckpt/{algo_name}/{ckpt_dir}')
     device = cfg.device
     if device in ("", None):
         if torch.cuda.is_available():
@@ -47,7 +52,7 @@ def main(cfg: "DictConfig"):  # noqa: F821
 
     # Make the components
     if cfg.pretrained_model:
-        model = torch.load(f'{base_dir}/{cfg.pretrained_model}').to(device)
+        model = torch.load(f'{base_dir}/{algo_name}/{cfg.pretrained_model}').to(device)
     else:
         model = make_dqn_model()
 
@@ -128,11 +133,21 @@ def main(cfg: "DictConfig"):  # noqa: F821
     # Create the logger
     logger = None
     if cfg.logger.backend:
-        logger = get_logger(
-            cfg.logger.backend,
-            logger_name=f'{base_dir}/ckpt/train',
-            experiment_name=ckpt_dir,
-        )
+        if cfg.logger.backend == 'wandb':
+            logger = get_logger(
+                cfg.logger.backend,
+                logger_name=f'{base_dir}/ckpt/{algo_name}',
+                experiment_name=ckpt_dir,
+                wandb_kwargs={
+                    "config": dict(cfg),
+                },
+            )
+        else:
+            logger = get_logger(
+                cfg.logger.backend,
+                logger_name=f'{base_dir}/ckpt/{algo_name}',
+                experiment_name=ckpt_dir,
+            )
 
     # Create the test environment
     test_env = make_env(
@@ -155,6 +170,7 @@ def main(cfg: "DictConfig"):  # noqa: F821
                 max_len=cfg.logger.test_steps // skip_frames,
             ),
         )
+    test_env.eval()
 
     # Main loop
     collected_frames = 0
@@ -262,7 +278,7 @@ def main(cfg: "DictConfig"):  # noqa: F821
                 model_name = str(collected_frames // 1000).rjust(5, '0')
                 torch.save(
                     model,
-                    f'{base_dir}/ckpt/train/{ckpt_dir}/t[{model_name}]_r[{test_rewards:.2f}].pt'
+                    f'{base_dir}/ckpt/{algo_name}/{ckpt_dir}/t[{model_name}]_r[{test_rewards:.2f}].pt'
                 )
 
         # Log all the information
@@ -282,6 +298,6 @@ def main(cfg: "DictConfig"):  # noqa: F821
 
 
 if __name__ == "__main__":
-    cfg = yaml.load(open(f'{base_dir}/configs/dqn_train_config.yaml'), Loader=yaml.FullLoader)
+    cfg = yaml.load(open(f'{base_dir}/configs/{algo_name}_train_config.yaml'), Loader=yaml.FullLoader)
     cfg = DictConfig(cfg)
     main(cfg)
