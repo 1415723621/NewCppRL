@@ -6,40 +6,28 @@ from pathlib import Path
 
 import torch.nn
 import torch.optim
+import torch.optim
 import tqdm
 import yaml
 from omegaconf import DictConfig
-from tensordict.nn import TensorDictSequential
+from rl.ppo.ppo_utils import make_ppo_models
+from tensordict import TensorDict
 from torchrl._utils import logger as torchrl_logger
 from torchrl.collectors import MultiaSyncDataCollector
-from torchrl.data import TensorDictPrioritizedReplayBuffer, LazyMemmapStorage
-from torchrl.envs import ExplorationType, set_exploration_type
-from torchrl.modules import EGreedyModule
-from torchrl.objectives import DQNLoss, HardUpdate
-from torchrl.record.loggers import get_logger
-
-import envs  # noqa
-from envs.cpp_env_v2 import CppEnvironment
-from rl.ppo.ppo_utils import make_ppo_models
-from torchrl_utils import (
-    CustomVideoRecorder,
-    CustomDQNLoss,
-    value_rescale_inv,
-    make_env,
-    eval_model
-)
-import time
-
-import torch.optim
-import tqdm
-
-from tensordict import TensorDict
-from torchrl.collectors import SyncDataCollector
 from torchrl.data import LazyMemmapStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 from torchrl.envs import ExplorationType, set_exploration_type
 from torchrl.objectives import ClipPPOLoss
 from torchrl.objectives.value.advantages import GAE
+from torchrl.record.loggers import get_logger
+
+import envs  # noqa
+from envs.cpp_env_v2 import CppEnvironment
+from torchrl_utils import (
+    CustomVideoRecorder,
+    make_env,
+    eval_model
+)
 
 base_dir = Path(__file__).parent.parent.parent
 nvec = CppEnvironment.nvec
@@ -73,6 +61,10 @@ def main(cfg: "DictConfig"):  # noqa: F821
         actor_critic = make_ppo_models()
         actor = actor_critic.get_policy_operator().to(device)
         critic = actor_critic.get_value_operator().to(device)
+    torch.save(
+        actor_critic,
+        f'{base_dir}/ckpt/{algo_name}/{ckpt_dir}/t[00000]_r[0].pt'
+    )
 
     # Create the collector
     collector = MultiaSyncDataCollector(
@@ -247,7 +239,7 @@ def main(cfg: "DictConfig"):  # noqa: F821
                 num_network_updates += 1
                 if cfg_loss_anneal_clip_eps:
                     target_clip_eps = max(0.1, cfg_loss_clip_epsilon * alpha)
-                    loss_module.clip_epsilon.copy_(cfg_loss_clip_epsilon * alpha)
+                    loss_module.clip_epsilon.copy_(target_clip_eps)
                 # Get a data batch
                 batch = batch.to(device, non_blocking=True)
 

@@ -10,17 +10,16 @@ from torchrl.envs.utils import ExplorationType, set_exploration_type
 
 import envs  # noqa
 
-base_dir = Path(__file__).parent.parent
+base_dir = Path(__file__).parent.parent.parent
 cfg = DictConfig(yaml.load(open(f'{base_dir}/configs/env_config.yaml'), Loader=yaml.FullLoader))
 episodes = 10
 render = True
 
 device = 'cpu'
-# pt_path = f'../ckpt/train/2024-08-24_03-56-49_CnnElu/t[00400]_r[1650.20].pt'
-# pt_path = f'../ckpt/train/2024-08-24_03-56-49_CnnElu/t[01650]_r[1215.28].pt'
-pt_path = f'../../ckpt/dqn/2024-08-24_12-19-11_CnnElu/t[02250]_r[-772.48].pt'
-model = torch.load(pt_path).to(device)
-actor = model[0]
+pt_path = f'../../ckpt/ppo/2024-08-24_21-00-43_CnnElu/t[00000]_r[0].pt'
+actor_critic = torch.load(pt_path).to(device)
+actor = actor_critic.get_policy_operator().to(device)
+# actor = model[0]
 
 # cfg.env.params.num_obstacles_range = [0, 0]
 
@@ -36,7 +35,8 @@ if render:
 
 costs = []
 
-with set_exploration_type(ExplorationType.MODE), torch.no_grad():
+# with set_exploration_type(ExplorationType.DETERMINISTIC), torch.no_grad():
+with set_exploration_type(ExplorationType.RANDOM), torch.no_grad():
     i = 0
     failed_count = 0
     while i < episodes:
@@ -56,7 +56,7 @@ with set_exploration_type(ExplorationType.MODE), torch.no_grad():
             # Get Output
             action = actor(observation=observation, vector=vector)
             # print(action[0])
-            action = action[0].argmax()
+            action = action[2].argmax()
             action = int(action)
             # print(action)
             obs, reward, done, _, info = env.step(action)

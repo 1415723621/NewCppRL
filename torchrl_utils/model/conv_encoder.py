@@ -15,6 +15,7 @@ class ConvEncoder(nn.Module):
                  strides: Sequence[int] = (1, 1, 1),
                  vec_dim=14,
                  vec_out=256,
+                 activation_class=torch.nn.ReLU
                  ):
         super(ConvEncoder, self).__init__()
         in_ch = raster_shape[0]
@@ -29,9 +30,9 @@ class ConvEncoder(nn.Module):
         cnn_output = self.cnn_encoder(torch.ones(raster_shape))
         self.post_encoder = nn.Sequential(
             nn.Linear(vec_dim + cnn_output.size(0), vec_out),
-            nn.ReLU(),
-            nn.Linear(vec_out, vec_out),
-            nn.ReLU(),
+            activation_class(),
+            # nn.Linear(vec_out, vec_out),
+            # activation_class(),
         )
 
     def forward(self, observation, vector=None):

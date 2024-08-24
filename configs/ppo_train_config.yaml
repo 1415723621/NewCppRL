@@ -7,7 +7,7 @@ ckpt_name: CnnElu
 collector:
   total_frames: 3_000_000
   frames_per_batch: 2000
-  num_envs: 8
+  num_envs: 12
 
 # Optim
 optim:
@@ -23,8 +23,8 @@ loss:
   mini_batch_size: 512
   ppo_epochs: 8
   gae_lambda: 0.95
-  clip_epsilon: 0.4
-  anneal_clip_epsilon: True
+  clip_epsilon: 0.1
+  anneal_clip_epsilon: False
   critic_coef: 1.0
   entropy_coef: 0.01
   loss_critic_type: l2

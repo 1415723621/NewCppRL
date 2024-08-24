@@ -32,7 +32,6 @@ from torchrl_utils.utils_env import make_env
 
 
 def make_ppo_modules(proof_environment):
-
     # Define input shape
     input_shape = proof_environment.observation_spec["observation"].shape
     env_specs = proof_environment.specs
@@ -55,23 +54,8 @@ def make_ppo_modules(proof_environment):
         strides=(1, 1, 1),
         vec_dim=1,
         vec_out=encoder_out_dim,
+        activation_class=torch.nn.Tanh,
     )
-    # common_cnn = ConvNet(
-    #     activation_class=torch.nn.ReLU,
-    #     num_cells=[32, 64, 64],
-    #     kernel_sizes=[8, 4, 3],
-    #     strides=[4, 2, 1],
-    # )
-    # common_cnn_output = common_cnn(torch.ones(input_shape))
-    # common_mlp = MLP(
-    #     in_features=common_cnn_output.shape[-1],
-    #     activation_class=torch.nn.ReLU,
-    #     activate_last_layer=True,
-    #     out_features=512,
-    #     num_cells=[],
-    # )
-    # common_mlp_output = common_mlp(common_cnn_output)
-
     # Define shared net as TensorDictModule
     common_module = TensorDictModule(
         module=common_encoder,
@@ -83,7 +67,7 @@ def make_ppo_modules(proof_environment):
     policy_net = MLP(
         in_features=encoder_out_dim,
         out_features=num_outputs,
-        activation_class=torch.nn.ReLU,
+        activation_class=torch.nn.Tanh,
         num_cells=[256],
     )
     policy_module = TensorDictModule(
@@ -105,7 +89,7 @@ def make_ppo_modules(proof_environment):
 
     # Define another head for the value
     value_net = MLP(
-        activation_class=torch.nn.ReLU,
+        activation_class=torch.nn.Tanh,
         in_features=encoder_out_dim,
         out_features=1,
         num_cells=[256],
@@ -116,6 +100,19 @@ def make_ppo_modules(proof_environment):
     )
 
     return common_module, policy_module, value_module
+
+
+def init_weights(m):
+    if isinstance(m, torch.nn.Conv2d):
+        torch.nn.init.kaiming_normal_(m.weight, mode="fan_in", nonlinearity="relu")
+        # nn.init.orthogonal_(m.weight, gain=2**0.5)
+        if m.bias is not None:
+            torch.nn.init.constant_(m.bias, 0)
+    elif isinstance(m, torch.nn.Linear):
+        # nn.init.kaiming_normal_(m.weight, mode="fan_in", nonlinearity="relu")
+        torch.nn.init.orthogonal_(m.weight, gain=2 ** 0.5)
+        if m.bias is not None:
+            torch.nn.init.constant_(m.bias, 0)
 
 
 def make_ppo_models():
@@ -135,10 +132,12 @@ def make_ppo_models():
         td = proof_environment.rollout(max_steps=100, break_when_any_done=False)
         td = actor_critic(td)
         del td
+    actor_critic.apply(init_weights)
 
     del proof_environment
 
     return actor_critic
+
 
 # ====================================================================
 # Model utils
