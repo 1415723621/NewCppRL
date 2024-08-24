@@ -1,3 +1,4 @@
+import torch.nn
 from torchrl.data import CompositeSpec
 from torchrl.modules import QValueActor
 
@@ -38,6 +39,8 @@ def make_dqn_modules(proof_environment):
         obs_dim=1,
         hidden_dim=512,
         action_num=num_outputs,
+        cnn_activation_class=None,
+        mlp_activation_class=torch.nn.SiLU,
     )
     # dqn = MLP(
     #     in_features=input_shape[-1],

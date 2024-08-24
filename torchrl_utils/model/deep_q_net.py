@@ -14,7 +14,9 @@ class DeepQNet(nn.Module):
                  strides: Sequence[int] = (1, 1, 1),
                  obs_dim=14,
                  hidden_dim=256,
-                 action_num=15):
+                 action_num=15,
+                 cnn_activation_class=nn.ELU,
+                 mlp_activation_class=nn.ReLU,):
         super(DeepQNet, self).__init__()
         self.encoder = ConvEncoder(
             raster_shape=raster_shape,
@@ -23,10 +25,12 @@ class DeepQNet(nn.Module):
             strides=strides,
             vec_dim=obs_dim,
             vec_out=hidden_dim,
+            cnn_activation_class=cnn_activation_class,
+            mlp_activation_class=mlp_activation_class,
         )
         self.q_head = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
+            mlp_activation_class(),
             nn.Linear(hidden_dim, action_num),
             # DuelingHead(hidden_dim, action_num),
         )
