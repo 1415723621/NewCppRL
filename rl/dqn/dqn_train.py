@@ -262,17 +262,12 @@ def main(cfg: "DictConfig"):  # noqa: F821
                     test_rewards = td_test["next", "episode_reward"][td_test["next", "done"]].mean()
                 else:
                     test_rewards = td_test["next", "episode_reward"][-1].mean()
-                mean_velo = ((td_test["action"].argmax(-1) // nvec[1]) / (nvec[0] - 1)).mean().item()
-                mean_steer = ((td_test["action"].argmax(-1) % nvec[1]) / (nvec[1] - 1)).mean().item()
-                mean_steer = 2 * mean_steer - 1
                 eval_time = time.time() - eval_start
                 model.train()
                 log_info.update(
                     {
                         "eval/reward": test_rewards,
                         "eval/eval_time": eval_time,
-                        "eval/mean_velo": mean_velo,
-                        "eval/mean_steer": mean_steer,
                     }
                 )
                 model_name = str(collected_frames // 1000).rjust(5, '0')
@@ -298,6 +293,6 @@ def main(cfg: "DictConfig"):  # noqa: F821
 
 
 if __name__ == "__main__":
-    cfg = yaml.load(open(f'{base_dir}/configs/{algo_name}_train_config.yaml'), Loader=yaml.FullLoader)
+    cfg = yaml.load(open(f'{base_dir}/configs/train_{algo_name}_config.yaml'), Loader=yaml.FullLoader)
     cfg = DictConfig(cfg)
     main(cfg)

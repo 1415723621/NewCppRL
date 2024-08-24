@@ -164,7 +164,7 @@ def main(cfg: "DictConfig"):  # noqa: F821
                 skip=skip_frames,
                 make_grid=False,
                 nrow=2,
-                max_len=cfg.logger.test_steps // skip_frames,
+                max_len=cfg.logger.test_steps // skip_frames + 10,
             ),
         )
     test_env.eval()
@@ -320,6 +320,6 @@ def main(cfg: "DictConfig"):  # noqa: F821
 
 
 if __name__ == "__main__":
-    cfg = yaml.load(open(f'{base_dir}/configs/{algo_name}_train_config.yaml'), Loader=yaml.FullLoader)
+    cfg = yaml.load(open(f'{base_dir}/configs/train_{algo_name}_config.yaml'), Loader=yaml.FullLoader)
     cfg = DictConfig(cfg)
     main(cfg)

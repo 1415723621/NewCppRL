@@ -13,10 +13,12 @@ class _ResNetBlock(nn.Module):
         self,
         num_in,
         num_ch,
+        activation_function=nn.ELU,
     ):
         super(_ResNetBlock, self).__init__()
         resnet_block = []
-        resnet_block.append(nn.ELU(inplace=False))
+        if activation_function is not None:
+            resnet_block.append(activation_function(inplace=False))
         resnet_block.append(
             nn.Conv2d(
                 in_channels=num_in,
@@ -26,7 +28,8 @@ class _ResNetBlock(nn.Module):
                 padding=1,
             )
         )
-        resnet_block.append(nn.ELU(inplace=False))
+        if activation_function is not None:
+            resnet_block.append(activation_function(inplace=False))
         resnet_block.append(
             nn.Conv2d(
                 in_channels=num_ch,
@@ -44,7 +47,14 @@ class _ResNetBlock(nn.Module):
 
 
 class _ConvNetBlock(nn.Module):
-    def __init__(self, num_in, num_ch, kernel_size=3, stride=1, max_stride=2, padding=1):
+    def __init__(self,
+                 num_in,
+                 num_ch,
+                 kernel_size=3,
+                 stride=1,
+                 max_stride=2,
+                 padding=1,
+                 activation_function=nn.ELU,):
         super().__init__()
 
         conv = nn.Conv2d(
@@ -56,8 +66,8 @@ class _ConvNetBlock(nn.Module):
         )
         mp = nn.MaxPool2d(kernel_size=kernel_size, stride=max_stride, padding=padding)
         self.feats_conv = nn.Sequential(conv, mp)
-        self.resnet1 = _ResNetBlock(num_in=num_ch, num_ch=num_ch)
-        self.resnet2 = _ResNetBlock(num_in=num_ch, num_ch=num_ch)
+        self.resnet1 = _ResNetBlock(num_in=num_ch, num_ch=num_ch, activation_function=activation_function)
+        self.resnet2 = _ResNetBlock(num_in=num_ch, num_ch=num_ch, activation_function=activation_function)
 
     def forward(self, x):
         x = self.feats_conv(x)

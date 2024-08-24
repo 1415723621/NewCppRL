@@ -14,9 +14,11 @@ base_dir = Path(__file__).parent.parent.parent
 cfg = DictConfig(yaml.load(open(f'{base_dir}/configs/env_config.yaml'), Loader=yaml.FullLoader))
 episodes = 10
 render = True
+# act_randomly = True
+act_randomly = False
 
 device = 'cpu'
-pt_path = f'../../ckpt/ppo/2024-08-24_21-00-43_CnnElu/t[00000]_r[0].pt'
+pt_path = f'../../ckpt/ppo/2024-08-24_22-37-19_CnnElu/t[00202]_r[-241.332].pt'
 actor_critic = torch.load(pt_path).to(device)
 actor = actor_critic.get_policy_operator().to(device)
 # actor = model[0]
@@ -35,8 +37,9 @@ if render:
 
 costs = []
 
-# with set_exploration_type(ExplorationType.DETERMINISTIC), torch.no_grad():
-with set_exploration_type(ExplorationType.RANDOM), torch.no_grad():
+exploration_type = ExplorationType.RANDOM if act_randomly else ExplorationType.DETERMINISTIC
+
+with set_exploration_type(exploration_type), torch.no_grad():
     i = 0
     failed_count = 0
     while i < episodes:

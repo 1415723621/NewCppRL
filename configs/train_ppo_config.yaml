@@ -20,7 +20,7 @@ optim:
 # loss
 loss:
   gamma: 0.99
-  mini_batch_size: 512
+  mini_batch_size: 1024
   ppo_epochs: 8
   gae_lambda: 0.95
   clip_epsilon: 0.1
@@ -36,4 +36,4 @@ logger:
   exp_name: Train
   test_interval: 50_000
   test_steps: 2_000
-  video: True
+  video: False
