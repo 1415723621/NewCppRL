@@ -175,9 +175,9 @@ class CppEnvironment(gym.Env):
         self.t += 1
         time_out = self.t == 2000
         finish = self.weed_num_t == 0 and self.frontier_area_t == 0
-        done = crashed or time_out or finish
+        done = crashed or finish
         obs = self.observation()
-        return obs, reward, done, False, {}
+        return obs, reward, done, time_out, {}
 
     def get_reward(self,
                    steer_tp1: float,

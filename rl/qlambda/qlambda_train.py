@@ -1,3 +1,4 @@
+import math
 import os
 import tempfile
 import time
@@ -11,10 +12,11 @@ from omegaconf import DictConfig
 from tensordict.nn import TensorDictSequential
 from torchrl._utils import logger as torchrl_logger
 from torchrl.collectors import MultiaSyncDataCollector
-from torchrl.data import TensorDictPrioritizedReplayBuffer, LazyMemmapStorage
+from torchrl.data import TensorDictPrioritizedReplayBuffer, LazyMemmapStorage, TensorDictReplayBuffer, \
+    PrioritizedSliceSampler
 from torchrl.envs import ExplorationType, set_exploration_type
 from torchrl.modules import EGreedyModule
-from torchrl.objectives import DQNLoss, HardUpdate
+from torchrl.objectives import DQNLoss, HardUpdate, ValueEstimators
 from torchrl.record.loggers import get_logger
 
 from rl.dqn.dqn_utils import make_dqn_model
@@ -27,7 +29,8 @@ from torchrl_utils import (
 )
 
 base_dir = Path(__file__).parent.parent.parent
-algo_name = 'dqn'
+algo_name = 'qlambda'
+
 
 def main(cfg: "DictConfig"):  # noqa: F821
     ckpt_dir = time.strftime('%Y-%m-%d_%H-%M-%S', time.localtime())
@@ -82,29 +85,31 @@ def main(cfg: "DictConfig"):  # noqa: F821
     # Create the replay buffer
     tempdir = tempfile.TemporaryDirectory()
     scratch_dir = tempdir.name
-    replay_buffer = TensorDictPrioritizedReplayBuffer(
-        alpha=0.7,
-        beta=0.5,
+    storage_ndim = 1
+    replay_buffer = TensorDictReplayBuffer(
         pin_memory=False,
         prefetch=10,
         storage=LazyMemmapStorage(
             max_size=cfg.buffer.buffer_size,
             scratch_dir=scratch_dir,
+            ndim=storage_ndim,
+        ),
+        sampler=PrioritizedSliceSampler(
+            alpha=0.7,
+            beta=0.5,
+            max_capacity=cfg.buffer.buffer_size,
+            slice_len=cfg.buffer.batch_length,
+            strict_length=False,
+            traj_key=("collector", "traj_ids"),
+            cache_values=True,
+            compile=True,
         ),
         batch_size=cfg.buffer.batch_size,
     )
-    # torchrl.data.replay_buffers.PrioritizedSliceSampler
-    # torchrl.data.replay_buffers.Tens
-    # sampler = SliceSampler(
-    #     slice_len=batch_seq_len,
-    #     strict_length=False,
-    #     traj_key=("collector", "traj_ids"),
-    #     cache_values=True,
-    #     compile=True,
-    # ),
 
     # Create the loss module
-    loss_module = CustomDQNLoss(
+    # loss_module = CustomDQNLoss(
+    loss_module = DQNLoss(
         value_network=model,
         loss_function="l2",
         # loss_function="smooth_l1",
@@ -113,8 +118,8 @@ def main(cfg: "DictConfig"):  # noqa: F821
     )
     loss_module.make_value_estimator(
         gamma=cfg.loss.gamma,
-        # value_type=ValueEstimators.TDLambda,
-        # lmbda=0.8,
+        lmbda=cfg.loss.lmbda,
+        value_type=ValueEstimators.TDLambda,
     )
     loss_module = loss_module.to(device)
     # target_net_updater = SoftUpdate(
@@ -125,7 +130,7 @@ def main(cfg: "DictConfig"):  # noqa: F821
     )
 
     # Create the optimizer
-    optimizer = torch.optim.AdamW(loss_module.parameters(), lr=cfg.optim.lr)
+    optimizer = torch.optim.Adam(loss_module.parameters(), lr=cfg.optim.lr)
 
     # Create the logger
     logger = None
@@ -172,37 +177,42 @@ def main(cfg: "DictConfig"):  # noqa: F821
     # Main loop
     collected_frames = 0
     start_time = time.time()
-    num_updates = cfg.loss.num_updates
+    # num_updates = cfg.loss.num_updates
     batch_size = cfg.buffer.batch_size
+    batch_length = cfg.buffer.batch_length
     test_interval = cfg.logger.test_interval
     frames_per_batch = cfg.collector.frames_per_batch
     pbar = tqdm.tqdm(total=cfg.collector.total_frames)
     init_random_frames = cfg.collector.init_random_frames
     sampling_start = time.time()
+    num_updates = math.ceil(math.ceil(frames_per_batch / batch_size) * cfg.loss.utd_ratio)
     q_losses = torch.zeros(num_updates, device=device)
 
     for i, data in enumerate(collector):
         log_info = {}
         sampling_time = time.time() - sampling_start
         pbar.update(data.numel())
-        data = data.reshape(-1)
-        current_frames = data.numel()
+        # data = data.unsqueeze(0)
         replay_buffer.extend(data)
+        # data = data.reshape(-1)
+        current_frames = data.numel()
+        # replay_buffer.extend(data)
         collected_frames += current_frames
         greedy_module.step(current_frames)
 
         # Get and log training rewards and episode lengths
-        episode_rewards = data["next", "episode_reward"][data["next", "done"]]
-        if len(episode_rewards) > 0:
-            episode_reward_mean = episode_rewards.mean().item()
+        if data["next", "done"].any():
+            episode_rewards = data["next", "episode_reward"][data["next", "done"]].mean()
             episode_length = data["next", "step_count"][data["next", "done"]]
-            episode_length_mean = episode_length.sum().item() / len(episode_length)
-            log_info.update(
-                {
-                    "train/episode_reward": episode_reward_mean,
-                    "train/episode_length": episode_length_mean,
-                }
-            )
+        else:
+            episode_rewards = data["next", "episode_reward"][-1].mean()
+            episode_length = data["next", "step_count"][-1]
+        log_info.update(
+            {
+                "train/episode_reward": episode_rewards,
+                "train/episode_length": episode_length.sum().item() / len(episode_length),
+            }
+        )
 
         if collected_frames < init_random_frames:
             if collected_frames < init_random_frames:
@@ -214,7 +224,7 @@ def main(cfg: "DictConfig"):  # noqa: F821
         # optimization steps
         training_start = time.time()
         for j in range(num_updates):
-            sampled_tensordict = replay_buffer.sample(batch_size)
+            sampled_tensordict = replay_buffer.sample()
             sampled_tensordict = sampled_tensordict.to(device)
             loss_td = loss_module(sampled_tensordict)
             # loss_id = torch.tensor(0.)
@@ -229,16 +239,37 @@ def main(cfg: "DictConfig"):  # noqa: F821
             optimizer.step()
             target_net_updater.step()
             q_losses[j].copy_(q_loss.detach())
+            # Update Priority
             replay_buffer.update_tensordict_priority(sampled_tensordict)
+            # priority = sampled_tensordict.get(replay_buffer.priority_key, None)
+            # if priority.ndim >= storage_ndim:
+            #     # We have to flatten the priority otherwise we'll be aggregating
+            #     # the priority across batches
+            #     priority = priority.flatten(0, storage_ndim - 1)
+            #
+            # priority = priority.reshape(priority.shape[0], -1)
+            # priority = _reduce(priority, self._sampler.reduction, dim=1)
+            #
+            # priority = priority.unflatten(0, sampled_tensordict.shape[: storage_ndim])
+            # index = sampled_tensordict.get("index")
+            # if index.ndim == 2:
+            #     index = index.unbind(-1)
+            # else:
+            #     while index.shape != priority.shape:
+            #         # reduce index
+            #         index = index[..., 0]
+            # replay_buffer.update_priority(index, priority)
         training_time = time.time() - training_start
 
         # Get and log q-values, loss, epsilon, sampling time and training time
         log_info.update(
             {
-                "train/q_values": value_rescale_inv((data["action_value"] * data["action"]).sum()).item()
+                "train/q_values": (data["action_value"] * data["action"]).sum().item()
                                   / frames_per_batch,
-                "train/q_logits": (data["action_value"] * data["action"]).sum().item()
-                                  / frames_per_batch,
+                # "train/q_values": value_rescale_inv((data["action_value"] * data["action"]).sum()).item()
+                #                   / frames_per_batch,
+                # "train/q_logits": (data["action_value"] * data["action"]).sum().item()
+                #                   / frames_per_batch,
                 "train/q_loss": q_losses.mean().item(),
                 "train/epsilon": greedy_module.eps,
                 "train/sampling_time": sampling_time,

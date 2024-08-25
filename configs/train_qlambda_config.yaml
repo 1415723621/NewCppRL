@@ -1,0 +1,43 @@
+device: null
+#pretrained_model: ckpt/train/2024-08-20_04-34-49_Apf/t[01700]_r[316.39].pt
+pretrained_model: null
+ckpt_name: LongBatch
+
+# collector
+collector:
+  total_frames: 3_000_000
+  frames_per_batch: 40
+  num_envs: 8
+  eps_start: 1.0
+  eps_end: 0.05
+  annealing_frames: 1_500_000
+  init_random_frames: 10_000
+#  init_random_frames: 0
+
+# buffer
+buffer:
+  buffer_size: 500_000
+  batch_size: 3840
+  batch_length: 120
+
+# Optim
+optim:
+  lr: 3.0e-4
+  max_grad_norm: 40
+
+# loss
+loss:
+  gamma: 0.99
+  lmbda: 0.85
+  hard_update_freq: 400
+  utd_ratio: 1
+
+# logger
+logger:
+  backend: tensorboard
+  model_name: DQN
+  exp_name: Train
+  test_interval: 100_000
+#  test_interval: 20_000
+  test_steps: 2_000
+  video: True

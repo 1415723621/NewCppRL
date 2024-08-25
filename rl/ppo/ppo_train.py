@@ -21,8 +21,6 @@ from torchrl.objectives import ClipPPOLoss
 from torchrl.objectives.value.advantages import GAE
 from torchrl.record.loggers import get_logger
 
-import envs  # noqa
-from envs.cpp_env_v2 import CppEnvironment
 from torchrl_utils import (
     CustomVideoRecorder,
     make_env,
@@ -30,7 +28,6 @@ from torchrl_utils import (
 )
 
 base_dir = Path(__file__).parent.parent.parent
-nvec = CppEnvironment.nvec
 algo_name = 'ppo'
 
 
@@ -142,7 +139,7 @@ def main(cfg: "DictConfig"):  # noqa: F821
         else:
             logger = get_logger(
                 cfg.logger.backend,
-                logger_name=f'{base_dir}/ckpt',
+                logger_name=f'{base_dir}/ckpt/{algo_name}',
                 experiment_name=ckpt_dir,
             )
 

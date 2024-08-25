@@ -6,6 +6,8 @@ from torchrl.envs import RewardSum, StepCounter, TransformedEnv, ParallelEnv
 import gymnasium as gym
 from torchrl.envs.libs.gym import GymWrapper
 
+import envs  # noqa
+
 # ====================================================================
 # Environment utils
 # --------------------------------------------------------------------
