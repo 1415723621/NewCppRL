@@ -11,7 +11,7 @@ from torchrl_utils.utils_env import make_env
 # --------------------------------------------------------------------
 
 
-def make_dqn_modules(proof_environment):
+def make_qlambda_modules(proof_environment):
     # Define input shape
     input_shape = proof_environment.observation_spec["observation"].shape
     env_specs = proof_environment.specs
@@ -57,8 +57,8 @@ def make_dqn_modules(proof_environment):
     return qvalue_module
 
 
-def make_dqn_model():
+def make_qlambda_model():
     proof_environment = make_env(device="cpu")
-    qvalue_module = make_dqn_modules(proof_environment)
+    qvalue_module = make_qlambda_modules(proof_environment)
     del proof_environment
     return qvalue_module

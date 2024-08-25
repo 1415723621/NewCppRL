@@ -19,11 +19,9 @@ from torchrl.modules import EGreedyModule
 from torchrl.objectives import DQNLoss, HardUpdate, ValueEstimators
 from torchrl.record.loggers import get_logger
 
-from rl.dqn.dqn_utils import make_dqn_model
+from rl.qlambda.qlambda_utils import make_qlambda_model
 from torchrl_utils import (
     CustomVideoRecorder,
-    CustomDQNLoss,
-    value_rescale_inv,
     make_env,
     eval_model
 )
@@ -54,7 +52,7 @@ def main(cfg: "DictConfig"):  # noqa: F821
     if cfg.pretrained_model:
         model = torch.load(f'{base_dir}/{algo_name}/{cfg.pretrained_model}').to(device)
     else:
-        model = make_dqn_model()
+        model = make_qlambda_model()
 
     greedy_module = EGreedyModule(
         annealing_num_steps=cfg.collector.annealing_frames,
