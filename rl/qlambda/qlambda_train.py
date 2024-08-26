@@ -97,7 +97,7 @@ def main(cfg: "DictConfig"):  # noqa: F821
             beta=0.5,
             max_capacity=cfg.buffer.buffer_size,
             slice_len=cfg.buffer.batch_length,
-            strict_length=False,
+            strict_length=True,
             traj_key=("collector", "traj_ids"),
             cache_values=True,
             compile=True,
@@ -118,6 +118,7 @@ def main(cfg: "DictConfig"):  # noqa: F821
         gamma=cfg.loss.gamma,
         lmbda=cfg.loss.lmbda,
         value_type=ValueEstimators.TDLambda,
+        # vectorized=False,
     )
     loss_module = loss_module.to(device)
     # target_net_updater = SoftUpdate(
@@ -223,6 +224,7 @@ def main(cfg: "DictConfig"):  # noqa: F821
         training_start = time.time()
         for j in range(num_updates):
             sampled_tensordict = replay_buffer.sample()
+            sampled_tensordict = sampled_tensordict.reshape(-1, batch_length)
             sampled_tensordict = sampled_tensordict.to(device)
             loss_td = loss_module(sampled_tensordict)
             # loss_id = torch.tensor(0.)

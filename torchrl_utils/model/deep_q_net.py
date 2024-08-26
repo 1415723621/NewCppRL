@@ -31,8 +31,8 @@ class DeepQNet(nn.Module):
         self.q_head = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim),
             mlp_activation_class(),
-            nn.Linear(hidden_dim, action_num),
-            # DuelingHead(hidden_dim, action_num),
+            # nn.Linear(hidden_dim, action_num),
+            DuelingHead(hidden_dim, action_num),
         )
 
     def forward(self, observation, vector=None):

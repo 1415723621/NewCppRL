@@ -172,7 +172,7 @@ class CppEnvironment(gym.Env):
         cv2.line(self.map_trajectory, pt1=(x_t, y_t), pt2=(x_tp1, y_tp1), color=(1.,))
         reward = self.get_reward(steer, x_t, y_t, x_tp1, y_tp1)
         if crashed:
-            reward -= 200.
+            reward -= 500.
         self.t += 1
         time_out = self.t == 2000
         finish = self.weed_num_t == 0 and self.frontier_area_t == 0
