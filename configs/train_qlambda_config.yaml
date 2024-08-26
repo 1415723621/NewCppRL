@@ -5,20 +5,20 @@ ckpt_name: LongBatch
 
 # collector
 collector:
-  total_frames: 3_000_000
+  total_frames: 4_000_000
   frames_per_batch: 40
-  num_envs: 8
+  num_envs: 16
   eps_start: 1.0
   eps_end: 0.05
-  annealing_frames: 1_500_000
+  annealing_frames: 2_500_000
   init_random_frames: 10_000
 #  init_random_frames: 0
 
 # buffer
 buffer:
   buffer_size: 500_000
-  batch_size: 3840
-  batch_length: 120
+  batch_size: 2560
+  batch_length: 80
 
 # Optim
 optim:
@@ -27,14 +27,14 @@ optim:
 
 # loss
 loss:
-  gamma: 0.99
-  lmbda: 0.85
+  gamma: 0.997
+  lmbda: 0.8
   hard_update_freq: 400
   utd_ratio: 1
 
 # logger
 logger:
-  backend: tensorboard
+  backend: wandb
   model_name: DQN
   exp_name: Train
   test_interval: 100_000

@@ -37,8 +37,14 @@ class ConvEncoder(nn.Module):
             # activation_class(),
         )
 
-    def forward(self, observation, vector=None):
-        embed = self.cnn_encoder(observation)
+    def forward(self, observation: torch.Tensor, vector=None):
+        if observation.ndim > 3:
+            ori_shape = observation.shape
+            observation = observation.reshape(-1, ori_shape[-3], ori_shape[-2], ori_shape[-1])
+            embed = self.cnn_encoder(observation)
+            embed = embed.reshape(list(ori_shape[:-3]) + [-1])
+        else:
+            embed = self.cnn_encoder(observation)
         if vector is not None:
             embed = torch.concatenate([
                 embed,

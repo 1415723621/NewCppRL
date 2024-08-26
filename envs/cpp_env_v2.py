@@ -171,7 +171,7 @@ class CppEnvironment(gym.Env):
         cv2.line(self.map_trajectory, pt1=(x_t, y_t), pt2=(x_tp1, y_tp1), color=(1.,))
         reward = self.get_reward(steer, x_t, y_t, x_tp1, y_tp1)
         if crashed:
-            reward -= 200.
+            reward -= 500.
         self.t += 1
         time_out = self.t == 2000
         finish = self.weed_num_t == 0 and self.frontier_area_t == 0
@@ -196,7 +196,7 @@ class CppEnvironment(gym.Env):
                                                 or (steer_tp1 == 0 and self.steer_t == 0))
                                          else 1.)
         reward_turn_self = 0.25 * (0.4 - abs(steer_tp1 / self.w_range.max) ** 0.5)
-        reward_turn = 0.5 * (reward_turn_gap
+        reward_turn = 0.15 * (reward_turn_gap
                              + reward_turn_direction
                              + reward_turn_self
                              )
@@ -212,15 +212,15 @@ class CppEnvironment(gym.Env):
         # Apf
         reward_apf_frontier = 0.0 * (self.obs_apf[0][y_tp1, x_tp1] - self.obs_apf[0][y_t, x_t])
         reward_apf_obstacle = -1.0 * (self.obs_apf[1][y_tp1, x_tp1] - self.obs_apf[1][y_t, x_t])
-        reward_apf_weed = 1.5 * (self.obs_apf[2][y_tp1, x_tp1] - self.obs_apf[2][y_t, x_t])
+        reward_apf_weed = 3.5 * (self.obs_apf[2][y_tp1, x_tp1] - self.obs_apf[2][y_t, x_t])
         reward_apf_trajectory = -1.0 * (self.obs_apf[3][y_tp1, x_tp1] - self.obs_apf[3][y_t, x_t])
         if reward_apf_obstacle >= 0.:
             reward_apf_obstacle = 0.
-        if reward_apf_weed < 0.:
-            reward_apf_weed = 0.
+        # if reward_apf_weed < 0.:
+        #     reward_apf_weed = 0.
         if reward_apf_trajectory >= 0.:
             reward_apf_trajectory = 0.
-        reward_apf = 1.0 * (reward_apf_frontier
+        reward_apf = 3.0 * (reward_apf_frontier
                             + reward_apf_obstacle
                             + reward_apf_weed
                             + reward_apf_trajectory)
