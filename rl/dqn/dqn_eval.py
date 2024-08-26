@@ -2,6 +2,7 @@ import collections
 import os
 from pathlib import Path
 import time
+from typing import Optional
 
 import gymnasium as gym
 import numpy as np
@@ -20,26 +21,33 @@ base_dir = Path(__file__).parent.parent.parent
 env_cfg = DictConfig(yaml.load(open(f'{base_dir}/configs/env_config.yaml'), Loader=yaml.FullLoader))
 episodes = 5
 max_step = 800
+video = True
 
 device = 'cpu'
-ckpt_path = f'../../ckpt/dqn/2024-08-26_23-39-09_CnnElu'
+ckpt_path = f'../../ckpt/dqn/2024-08-27_00-07-52_CnnElu'
 start_idx = 0
 ckpt_dir = ckpt_path.split('/')[-1]
 
 
-def eval_actor(env: gym.Env, actor: torch.nn.Module, logger: Logger, collected_frames: int, recorder: LocalVideoRecorder):
+def eval_actor(env: gym.Env,
+               actor: torch.nn.Module,
+               logger: Logger,
+               collected_frames: int,
+               recorder: Optional[LocalVideoRecorder]):
     rewards = []
     eval_start = time.time()
     with set_exploration_type(ExplorationType.MODE), torch.no_grad():
         for i in range(episodes):
-            print(f'\tEpisode ({i + 1} / {episodes})')
+            ep_start = time.time()
+            print(f'\tEpisode ({i + 1} / {episodes}) | ')
             obs, info = env.reset()
             done = False
             t = 0
             ret = 0.
             # Render
-            pixels = env.render()
-            recorder.apply(pixels)
+            if video:
+                pixels = env.render()
+                recorder.apply(pixels)
             while not done:
                 if isinstance(obs, dict):
                     observation = obs['observation']
@@ -53,9 +61,11 @@ def eval_actor(env: gym.Env, actor: torch.nn.Module, logger: Logger, collected_f
                 if t >= max_step:
                     done = True
                 # Render
-                pixels = env.render()
-                recorder.apply(pixels)
+                if video:
+                    pixels = env.render()
+                    recorder.apply(pixels)
             rewards.append(ret)
+            print(f'\tCost {time.time() - ep_start:.2f} seconds.')
     eval_time = time.time() - eval_start
     rewards_mean = np.mean(rewards)
     rewards_std = np.std(rewards)
@@ -66,8 +76,9 @@ def eval_actor(env: gym.Env, actor: torch.nn.Module, logger: Logger, collected_f
     }
     for key, value in log_info.items():
         logger.log_scalar(key, value, step=collected_frames)
-    video_tensor = recorder.dump()
-    logger.log_video('eval/video', video_tensor, step=collected_frames)
+    if video:
+        video_tensor = recorder.dump()
+        logger.log_video('eval/video', video_tensor, step=collected_frames)
     print(f'\tEvaluation finished, cost {eval_time:.2f} seconds. \n\tReward = {rewards_mean:.2f} ± {rewards_std:.2f}')
     return rewards_mean, rewards_std
 
@@ -97,13 +108,15 @@ if __name__ == '__main__':
     )
     # if render:
     #     env = HumanRendering(env)
-    skip_frames = 20
-    recorder = LocalVideoRecorder(
-        max_len=(max_step * episodes) // skip_frames + 2,
-        skip=skip_frames,
-        use_memmap=True,
-        fps=6,
-    )
+    recorder = None
+    if video:
+        skip_frames = 20
+        recorder = LocalVideoRecorder(
+            max_len=(max_step * episodes) // skip_frames + 2,
+            skip=skip_frames,
+            use_memmap=True,
+            fps=6,
+        )
 
     model_list = sorted(os.listdir(ckpt_path))
     last_num = len(model_list)
@@ -115,12 +128,12 @@ if __name__ == '__main__':
     print(model_list)
     print('Start watching.')
     while True:
-
         model_list = sorted(os.listdir(ckpt_path))
         cur_num = len(model_list)
         # print(model_list)
         if cur_num > last_num:
-            model_pool += model_list[last_num:-1]
+            print(f'{cur_num - last_num} new models detected.')
+            model_pool += model_list[last_num:(cur_num + 1)]
             while len(model_pool) > 0:
                 print(f'{len(model_pool)} left in Model Pool.')
                 model_id = model_pool.popleft()
@@ -132,7 +145,7 @@ if __name__ == '__main__':
                 actor = model[0]
                 rewards_mean, rewards_std = eval_actor(env, actor, logger, collected_frames, recorder)
                 model_name = str(collected_frames // 1000).rjust(5, '0')
-                os.rename(pt_path, f'{ckpt_path}/t[{model_name}]_r[{rewards_mean:.2f}±{rewards_std:.2f}]')
+                os.rename(pt_path, f'{ckpt_path}/t[{model_name}]_r[{rewards_mean:.2f}±{rewards_std:.2f}].pt')
                 print('Continue watching.')
         last_num = cur_num
         time.sleep(10)
