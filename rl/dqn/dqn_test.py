@@ -18,7 +18,7 @@ render = True
 device = 'cpu'
 # pt_path = f'../ckpt/train/2024-08-24_03-56-49_CnnElu/t[00400]_r[1650.20].pt'
 # pt_path = f'../ckpt/train/2024-08-24_03-56-49_CnnElu/t[01650]_r[1215.28].pt'
-pt_path = f'../../ckpt/t[01600]_r[-80.25].pt'
+pt_path = f'../../ckpt/dqn/2024-08-24_12-19-11_CnnElu/t[02250]_r[-772.48].pt'
 model = torch.load(pt_path).to(device)
 actor = model[0]
 
@@ -56,8 +56,8 @@ with set_exploration_type(ExplorationType.MODE), torch.no_grad():
             # Get Output
             action = actor(observation=observation, vector=vector)
             # print(action[0])
-            action = action[0].argmax()
-            action = int(action)
+            action = action[0].argmax().item()
+            # action = int(action)
             # print(action)
             obs, reward, done, _, info = env.step(action)
             max_r = max(max_r, reward)

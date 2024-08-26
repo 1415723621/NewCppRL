@@ -6,8 +6,8 @@ ckpt_name: CnnElu
 # collector
 collector:
   total_frames: 3_000_000
-  frames_per_batch: 10
-  num_envs: 16
+  frames_per_batch: 2_000
+  num_envs: 8
   eps_start: 1.0
   eps_end: 0.05
   annealing_frames: 1_000_000
@@ -17,18 +17,18 @@ collector:
 # buffer
 buffer:
   buffer_size: 500_000
-  batch_size: 1024
+  batch_size: 256
 
 # Optim
 optim:
   lr: 3.0e-4
-  max_grad_norm: 40
+  max_grad_norm: 10
 
 # loss
 loss:
   gamma: 0.99
-  hard_update_freq: 400
-  num_updates: 1
+  hard_update_freq: 5_000
+  utd_ratio: 20
 
 # logger
 logger:

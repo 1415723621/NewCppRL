@@ -14,11 +14,11 @@ base_dir = Path(__file__).parent.parent.parent
 cfg = DictConfig(yaml.load(open(f'{base_dir}/configs/env_config.yaml'), Loader=yaml.FullLoader))
 episodes = 10
 render = True
-# act_randomly = True
-act_randomly = False
+act_randomly = True
+# act_randomly = False
 
 device = 'cpu'
-pt_path = f'../../ckpt/ppo/2024-08-24_22-37-19_CnnElu/t[00202]_r[-241.332].pt'
+pt_path = f'../../ckpt/ppo/2024-08-25_00-18-18_NoTurnApf/t[00502]_r[-222.000].pt'
 actor_critic = torch.load(pt_path).to(device)
 actor = actor_critic.get_policy_operator().to(device)
 # actor = model[0]

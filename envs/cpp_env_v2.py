@@ -29,14 +29,15 @@ class CppEnvironment(gym.Env):
     vision_length = 28
     vision_angle = 75
 
-    v_range = NumericalRange(0.0, 3.0)
-    w_range = NumericalRange(-18.0, 18.0)
-    nvec = (6, 13)
+    v_range = NumericalRange(0.0, 3.5)
+    w_range = NumericalRange(-30.0, 30.0)
+    nvec = (7, 21)
 
     obstacle_size_range = (10, 40)
 
     render_repeat_times = 1
-    render_farmland_outsides = True
+    # render_farmland_outsides = True
+    render_farmland_outsides = False
 
     def __init__(
             self,
@@ -196,7 +197,7 @@ class CppEnvironment(gym.Env):
                                                 or (steer_tp1 == 0 and self.steer_t == 0))
                                          else 1.)
         reward_turn_self = 0.25 * (0.4 - abs(steer_tp1 / self.w_range.max) ** 0.5)
-        reward_turn = 0.5 * (reward_turn_gap
+        reward_turn = 0.15 * (reward_turn_gap
                              + reward_turn_direction
                              + reward_turn_self
                              )
@@ -208,19 +209,19 @@ class CppEnvironment(gym.Env):
                                 + reward_frontier_tv
                                 )
         # Weed
-        reward_weed = 5.0 * (weed_num_tp1 - self.weed_num_t)
+        reward_weed = 7.0 * (weed_num_tp1 - self.weed_num_t)
         # Apf
         reward_apf_frontier = 0.0 * (self.obs_apf[0][y_tp1, x_tp1] - self.obs_apf[0][y_t, x_t])
         reward_apf_obstacle = -1.0 * (self.obs_apf[1][y_tp1, x_tp1] - self.obs_apf[1][y_t, x_t])
-        reward_apf_weed = 1.5 * (self.obs_apf[2][y_tp1, x_tp1] - self.obs_apf[2][y_t, x_t])
+        reward_apf_weed = 3.5 * (self.obs_apf[2][y_tp1, x_tp1] - self.obs_apf[2][y_t, x_t])
         reward_apf_trajectory = -1.0 * (self.obs_apf[3][y_tp1, x_tp1] - self.obs_apf[3][y_t, x_t])
         if reward_apf_obstacle >= 0.:
             reward_apf_obstacle = 0.
-        if reward_apf_weed < 0.:
-            reward_apf_weed = 0.
+        # if reward_apf_weed < 0.:
+        #     reward_apf_weed = 0.
         if reward_apf_trajectory >= 0.:
             reward_apf_trajectory = 0.
-        reward_apf = 1.0 * (reward_apf_frontier
+        reward_apf = 3.0 * (reward_apf_frontier
                             + reward_apf_obstacle
                             + reward_apf_weed
                             + reward_apf_trajectory)

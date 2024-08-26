@@ -1,3 +1,4 @@
+import math
 import os
 import tempfile
 import time
@@ -93,15 +94,26 @@ def main(cfg: "DictConfig"):  # noqa: F821
         ),
         batch_size=cfg.buffer.batch_size,
     )
-    # torchrl.data.replay_buffers.PrioritizedSliceSampler
-    # torchrl.data.replay_buffers.Tens
-    # sampler = SliceSampler(
-    #     slice_len=batch_seq_len,
-    #     strict_length=False,
-    #     traj_key=("collector", "traj_ids"),
-    #     cache_values=True,
-    #     compile=True,
-    # ),
+    # replay_buffer = TensorDictReplayBuffer(
+    #     pin_memory=False,
+    #     prefetch=prefetch,
+    #     storage=LazyMemmapStorage(
+    #         buffer_size,
+    #         scratch_dir=scratch_dir,
+    #         device="cpu",
+    #         ndim=2,
+    #     ),
+    #     sampler=PrioritizedSliceSampler(
+    #         alpha=0.7,
+    #         beta=0.5,
+    #         slice_len=batch_seq_len,
+    #         strict_length=False,
+    #         traj_key=("collector", "traj_ids"),
+    #         cache_values=True,
+    #         compile=True,
+    #     ),
+    #     batch_size=batch_size,
+    # )
 
     # Create the loss module
     loss_module = CustomDQNLoss(
@@ -147,37 +159,38 @@ def main(cfg: "DictConfig"):  # noqa: F821
             )
 
     # Create the test environment
-    test_env = make_env(
-        num_envs=1,
-        # device=device,
-        device='cpu',
-        from_pixels=cfg.logger.video,
-    )
-    if cfg.logger.video:
-        skip_frames = 20
-        test_env.insert_transform(
-            0,
-            CustomVideoRecorder(
-                logger,
-                tag=f"eval/video",
-                in_keys=["pixels"],
-                skip=skip_frames,
-                make_grid=False,
-                nrow=2,
-                max_len=cfg.logger.test_steps // skip_frames,
-            ),
-        )
-    test_env.eval()
+    # test_env = make_env(
+    #     num_envs=1,
+    #     # device=device,
+    #     device='cpu',
+    #     from_pixels=cfg.logger.video,
+    # )
+    # if cfg.logger.video:
+    #     skip_frames = 20
+    #     test_env.insert_transform(
+    #         0,
+    #         CustomVideoRecorder(
+    #             logger,
+    #             tag=f"eval/video",
+    #             in_keys=["pixels"],
+    #             skip=skip_frames,
+    #             make_grid=False,
+    #             nrow=2,
+    #             max_len=cfg.logger.test_steps // skip_frames,
+    #         ),
+    #     )
+    # test_env.eval()
 
     # Main loop
     collected_frames = 0
     start_time = time.time()
-    num_updates = cfg.loss.num_updates
+    # num_updates = cfg.loss.num_updates
     batch_size = cfg.buffer.batch_size
     test_interval = cfg.logger.test_interval
     frames_per_batch = cfg.collector.frames_per_batch
     pbar = tqdm.tqdm(total=cfg.collector.total_frames)
     init_random_frames = cfg.collector.init_random_frames
+    num_updates = math.ceil(frames_per_batch / batch_size * cfg.loss.utd_ratio)
     sampling_start = time.time()
     q_losses = torch.zeros(num_updates, device=device)
 
@@ -251,27 +264,32 @@ def main(cfg: "DictConfig"):  # noqa: F821
         cur_test_frame = (i * frames_per_batch) // test_interval
         final = collected_frames >= collector.total_frames
         if (i > 0 and (prev_test_frame < cur_test_frame)) or final:
-            with torch.no_grad(), set_exploration_type(ExplorationType.MODE):
-                model.eval()
-                eval_start = time.time()
-                td_test = eval_model(model, test_env, cfg.logger.test_steps)
-                if td_test["next", "done"].any():
-                    test_rewards = td_test["next", "episode_reward"][td_test["next", "done"]].mean()
-                else:
-                    test_rewards = td_test["next", "episode_reward"][-1].mean()
-                eval_time = time.time() - eval_start
-                model.train()
-                log_info.update(
-                    {
-                        "eval/reward": test_rewards,
-                        "eval/eval_time": eval_time,
-                    }
-                )
-                model_name = str(collected_frames // 1000).rjust(5, '0')
-                torch.save(
-                    model,
-                    f'{base_dir}/ckpt/{algo_name}/{ckpt_dir}/t[{model_name}]_r[{test_rewards:.2f}].pt'
-                )
+            model_name = str(collected_frames // 1000).rjust(5, '0')
+            torch.save(
+                model,
+                f'{base_dir}/ckpt/{algo_name}/{ckpt_dir}/t[{model_name}].pt'
+            )
+            # with torch.no_grad(), set_exploration_type(ExplorationType.MODE):
+            #     model.eval()
+            #     eval_start = time.time()
+            #     td_test = eval_model(model, test_env, cfg.logger.test_steps)
+            #     if td_test["next", "done"].any():
+            #         test_rewards = td_test["next", "episode_reward"][td_test["next", "done"]].mean()
+            #     else:
+            #         test_rewards = td_test["next", "episode_reward"][-1].mean()
+            #     eval_time = time.time() - eval_start
+            #     model.train()
+            #     log_info.update(
+            #         {
+            #             "eval/reward": test_rewards,
+            #             "eval/eval_time": eval_time,
+            #         }
+            #     )
+            #     model_name = str(collected_frames // 1000).rjust(5, '0')
+            #     torch.save(
+            #         model,
+            #         f'{base_dir}/ckpt/{algo_name}/{ckpt_dir}/t[{model_name}]_r[{test_rewards:.2f}].pt'
+            #     )
 
         # Log all the information
         if logger:
