@@ -72,7 +72,6 @@ def main(cfg: "DictConfig"):  # noqa: F821
         device='cpu',
         storing_device='cpu',
         max_frames_per_traj=-1,
-        reset_at_each_iter=True,
     )
 
     # Create the replay buffer
