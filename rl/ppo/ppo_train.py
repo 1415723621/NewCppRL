@@ -11,7 +11,6 @@ import torch.optim
 import tqdm
 import yaml
 from omegaconf import DictConfig
-from rl.ppo.ppo_utils import make_ppo_models
 from tensordict import TensorDict
 from torchrl._utils import logger as torchrl_logger
 from torchrl.collectors import MultiaSyncDataCollector
@@ -22,6 +21,7 @@ from torchrl.objectives import ClipPPOLoss
 from torchrl.objectives.value.advantages import GAE
 from torchrl.record.loggers import get_logger
 
+from rl.ppo.ppo_utils import make_ppo_models
 from torchrl_utils import (
     CustomVideoRecorder,
     make_env,

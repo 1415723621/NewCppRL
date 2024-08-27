@@ -10,21 +10,15 @@ import torch.optim
 import tqdm
 import yaml
 from omegaconf import DictConfig
-from rl.sac.sac_utils import make_sac_models
-from tensordict import TensorDict
 from torchrl._utils import logger as torchrl_logger
 from torchrl.collectors import MultiaSyncDataCollector
-from torchrl.data import LazyMemmapStorage, TensorDictReplayBuffer, TensorDictPrioritizedReplayBuffer
-from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
-from torchrl.envs import ExplorationType, set_exploration_type
-from torchrl.objectives import ClipPPOLoss, SoftUpdate, DiscreteSACLoss
-from torchrl.objectives.value.advantages import GAE
+from torchrl.data import LazyMemmapStorage, TensorDictPrioritizedReplayBuffer
+from torchrl.objectives import SoftUpdate, DiscreteSACLoss
 from torchrl.record.loggers import get_logger
 
+from rl.sac.sac_utils import make_sac_models
 from torchrl_utils import (
-    CustomVideoRecorder,
-    make_env,
-    eval_model
+    make_env
 )
 
 base_dir = Path(__file__).parent.parent.parent
@@ -59,10 +53,10 @@ def main(cfg: "DictConfig"):  # noqa: F821
     else:
         actor_critic = make_sac_models()
         actor_critic = actor_critic.to(device)
-    torch.save(
-        actor_critic,
-        f'{base_dir}/ckpt/{algo_name}/{ckpt_dir}/t[00000].pt'
-    )
+    # torch.save(
+    #     actor_critic,
+    #     f'{base_dir}/ckpt/{algo_name}/{ckpt_dir}/t[00000].pt'
+    # )
     actor = actor_critic[0]
     q_critic = actor_critic[1]
 

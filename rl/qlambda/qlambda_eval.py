@@ -1,18 +1,17 @@
 import collections
 import os
-from pathlib import Path
 import time
+from pathlib import Path
 from typing import Optional
 
 import gymnasium as gym
 import numpy as np
 import torch
+import tqdm
 import yaml
-from gymnasium.wrappers import HumanRendering
 from omegaconf import DictConfig
 from torchrl.envs.utils import ExplorationType, set_exploration_type
 from torchrl.record.loggers import get_logger, Logger
-import tqdm
 
 import envs  # noqa
 from torchrl_utils.local_video_recorder import LocalVideoRecorder

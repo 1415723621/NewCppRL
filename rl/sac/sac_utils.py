@@ -2,21 +2,12 @@ import torch.nn
 import torch.optim
 from tensordict.nn import TensorDictModule, InteractionType
 from torchrl.data import CompositeSpec
-from torchrl.envs import (
-    ExplorationType,
-)
 from torchrl.modules import (
-    ActorValueOperator,
-    ConvNet,
-    MLP,
     OneHotCategorical,
     ProbabilisticActor,
-    TanhNormal,
-    ValueOperator, SafeModule,
+    SafeModule,
 )
-from torchrl.modules import QValueActor
 
-from torchrl_utils.model.conv_encoder import ConvEncoder
 from torchrl_utils.model.deep_q_net import DeepQNet
 from torchrl_utils.utils_env import make_env
 

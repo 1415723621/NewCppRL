@@ -14,18 +14,15 @@ from tensordict.nn import TensorDictSequential
 from torchrl._utils import logger as torchrl_logger
 from torchrl.collectors import MultiaSyncDataCollector
 from torchrl.data import TensorDictPrioritizedReplayBuffer, LazyMemmapStorage
-from torchrl.envs import ExplorationType, set_exploration_type
 from torchrl.modules import EGreedyModule
-from torchrl.objectives import DQNLoss, HardUpdate
+from torchrl.objectives import HardUpdate
 from torchrl.record.loggers import get_logger
 
 from rl.dqn.dqn_utils import make_dqn_model
 from torchrl_utils import (
-    CustomVideoRecorder,
     CustomDQNLoss,
     value_rescale_inv,
-    make_env,
-    eval_model
+    make_env
 )
 
 base_dir = Path(__file__).parent.parent.parent

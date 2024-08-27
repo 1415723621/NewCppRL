@@ -13,9 +13,8 @@ from omegaconf import DictConfig
 from tensordict.nn import TensorDictSequential
 from torchrl._utils import logger as torchrl_logger
 from torchrl.collectors import MultiaSyncDataCollector
-from torchrl.data import TensorDictPrioritizedReplayBuffer, LazyMemmapStorage, TensorDictReplayBuffer, \
+from torchrl.data import LazyMemmapStorage, TensorDictReplayBuffer, \
     PrioritizedSliceSampler
-from torchrl.envs import ExplorationType, set_exploration_type
 from torchrl.modules import EGreedyModule
 from torchrl.objectives import DQNLoss, HardUpdate, ValueEstimators
 from torchrl.record.loggers import get_logger
@@ -23,8 +22,7 @@ from torchrl.record.loggers import get_logger
 from rl.qlambda.qlambda_utils import make_qlambda_model
 from torchrl_utils import (
     CustomVideoRecorder,
-    make_env,
-    eval_model
+    make_env
 )
 
 base_dir = Path(__file__).parent.parent.parent
@@ -204,18 +202,17 @@ def main(cfg: "DictConfig"):  # noqa: F821
         greedy_module.step(current_frames)
 
         # Get and log training rewards and episode lengths
-        if data["next", "done"].any():
-            episode_rewards = data["next", "episode_reward"][data["next", "done"]].mean()
+        episode_rewards = data["next", "episode_reward"][data["next", "done"]]
+        if len(episode_rewards) > 0:
+            episode_reward_mean = episode_rewards.mean().item()
             episode_length = data["next", "step_count"][data["next", "done"]]
-        else:
-            episode_rewards = data["next", "episode_reward"][-1].mean()
-            episode_length = data["next", "step_count"][-1]
-        log_info.update(
-            {
-                "train/episode_reward": episode_rewards,
-                "train/episode_length": episode_length.sum().item() / len(episode_length),
-            }
-        )
+            episode_length_mean = episode_length.sum().item() / len(episode_length)
+            log_info.update(
+                {
+                    "train/episode_reward": episode_reward_mean,
+                    "train/episode_length": episode_length_mean,
+                }
+            )
 
         if collected_frames < init_random_frames:
             if collected_frames < init_random_frames:

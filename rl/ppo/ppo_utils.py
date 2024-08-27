@@ -7,17 +7,13 @@ from torchrl.envs import (
 )
 from torchrl.modules import (
     ActorValueOperator,
-    ConvNet,
     MLP,
     OneHotCategorical,
     ProbabilisticActor,
-    TanhNormal,
     ValueOperator,
 )
-from torchrl.modules import QValueActor
 
 from torchrl_utils.model.conv_encoder import ConvEncoder
-from torchrl_utils.model.deep_q_net import DeepQNet
 from torchrl_utils.utils_env import make_env
 
 

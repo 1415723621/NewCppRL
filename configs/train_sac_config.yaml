@@ -6,7 +6,7 @@ seed: 42
 
 # collector
 collector:
-  total_frames: 2_000_000
+  total_frames: 4_000_000
   frames_per_batch: 20
   num_envs: 8
   eps_start: 1.0
@@ -38,7 +38,7 @@ loss:
 # logger
 logger:
   backend: tensorboard
-  model_name: DQN
+  model_name: SAC
   exp_name: Train
   test_interval: 100_000
 #  test_interval: 20_000
