@@ -8,10 +8,10 @@ import gymnasium as gym
 import numpy as np
 import torch
 import yaml
-from gymnasium.wrappers import HumanRendering
 from omegaconf import DictConfig
 from torchrl.envs.utils import ExplorationType, set_exploration_type
 from torchrl.record.loggers import get_logger, Logger
+import tqdm
 
 import envs  # noqa
 from torchrl_utils.local_video_recorder import LocalVideoRecorder
@@ -24,7 +24,7 @@ max_step = 800
 video = True
 
 device = 'cpu'
-ckpt_path = f'../../ckpt/dqn/2024-08-27_00-07-52_CnnElu'
+ckpt_path = f'../../ckpt/dqn/2024-08-27_18-56-37_LessRewards'
 start_idx = 0
 ckpt_dir = ckpt_path.split('/')[-1]
 
@@ -37,9 +37,7 @@ def eval_actor(env: gym.Env,
     rewards = []
     eval_start = time.time()
     with set_exploration_type(ExplorationType.MODE), torch.no_grad():
-        for i in range(episodes):
-            ep_start = time.time()
-            print(f'\tEpisode ({i + 1} / {episodes}) | ')
+        for i in tqdm.trange(episodes):
             obs, info = env.reset()
             done = False
             t = 0
@@ -65,7 +63,7 @@ def eval_actor(env: gym.Env,
                     pixels = env.render()
                     recorder.apply(pixels)
             rewards.append(ret)
-            print(f'\tCost {time.time() - ep_start:.2f} seconds.')
+            # print(f'\tEpisode ({i + 1} / {episodes}) | Cost {time.time() - ep_start:.2f} seconds.')
     eval_time = time.time() - eval_start
     rewards_mean = np.mean(rewards)
     rewards_std = np.std(rewards)
@@ -137,6 +135,8 @@ if __name__ == '__main__':
             while len(model_pool) > 0:
                 print(f'{len(model_pool)} left in Model Pool.')
                 model_id = model_pool.popleft()
+                if len(model_id) > 11:
+                    continue
                 print(f'Processing model {model_id}.')
                 collected_frames = int(model_id[2:7]) * 1000
                 pt_path = f'{ckpt_path}/{model_id}'

@@ -139,6 +139,7 @@ class LocalVideoRecorder:
         self.idx += num_obs
 
     def dump(self, filepath: Optional[str] = None) -> None | torch.Tensor:
+        vid_tensor = None
         if self.idx > 0:
             vid_tensor = self.obs[:, :self.idx]
             if filepath is not None:
@@ -153,10 +154,7 @@ class LocalVideoRecorder:
                 vid_tensor = vid_tensor.permute((0, 2, 3, 1))
                 vid_tensor = vid_tensor.expand(*vid_tensor.shape[:-1], 3)
                 torchvision.io.write_video(filepath, vid_tensor, fps=self.fps)
-            else:
-                return vid_tensor
-        else:
-            return None
         self.iter += 1
         self.count = 0
         self.idx = 0
+        return vid_tensor

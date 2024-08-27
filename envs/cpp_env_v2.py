@@ -29,15 +29,16 @@ class CppEnvironment(gym.Env):
     vision_length = 28
     vision_angle = 75
 
-    v_range = NumericalRange(0.0, 3.5)
-    w_range = NumericalRange(-30.0, 30.0)
-    nvec = (7, 21)
+    v_range = NumericalRange(0.0, 3.0)
+    w_range = NumericalRange(-28.0, 28.0)
+    nvec = (6, 15)
 
     obstacle_size_range = (10, 40)
 
     render_repeat_times = 1
     # render_farmland_outsides = True
     render_farmland_outsides = False
+    render_weed = False
 
     def __init__(
             self,
@@ -197,31 +198,31 @@ class CppEnvironment(gym.Env):
                                                 or (steer_tp1 == 0 and self.steer_t == 0))
                                          else 1.)
         reward_turn_self = 0.25 * (0.4 - abs(steer_tp1 / self.w_range.max) ** 0.5)
-        reward_turn = 0.15 * (reward_turn_gap
+        reward_turn = 0.0 * (reward_turn_gap
                              + reward_turn_direction
                              + reward_turn_self
                              )
         # Frontier
         reward_frontier_coverage = (self.frontier_area_t - frontier_area_tp1) / (
                 2 * MowerAgent.width * self.v_range.max)
-        reward_frontier_tv = 0.25 * (self.frontier_tv_t - frontier_tv_tp1) / self.v_range.max
-        reward_frontier = 1. * (reward_frontier_coverage
-                                + reward_frontier_tv
-                                )
+        reward_frontier_tv = 1.0 * (self.frontier_tv_t - frontier_tv_tp1) / self.v_range.max
+        reward_frontier = 0.25 * (reward_frontier_coverage
+                                  + reward_frontier_tv
+                                  )
         # Weed
-        reward_weed = 7.0 * (weed_num_tp1 - self.weed_num_t)
+        reward_weed = 5.0 * (weed_num_tp1 - self.weed_num_t)
         # Apf
-        reward_apf_frontier = 0.0 * (self.obs_apf[0][y_tp1, x_tp1] - self.obs_apf[0][y_t, x_t])
-        reward_apf_obstacle = -1.0 * (self.obs_apf[1][y_tp1, x_tp1] - self.obs_apf[1][y_t, x_t])
-        reward_apf_weed = 3.5 * (self.obs_apf[2][y_tp1, x_tp1] - self.obs_apf[2][y_t, x_t])
-        reward_apf_trajectory = -1.0 * (self.obs_apf[3][y_tp1, x_tp1] - self.obs_apf[3][y_t, x_t])
+        reward_apf_frontier = 0.2 * (self.obs_apf[0][y_tp1, x_tp1] - self.obs_apf[0][y_t, x_t])
+        reward_apf_obstacle = -0.5 * (self.obs_apf[1][y_tp1, x_tp1] - self.obs_apf[1][y_t, x_t])
+        reward_apf_weed = 3.0 * (self.obs_apf[2][y_tp1, x_tp1] - self.obs_apf[2][y_t, x_t])
+        reward_apf_trajectory = -0.0 * (self.obs_apf[3][y_tp1, x_tp1] - self.obs_apf[3][y_t, x_t])
         if reward_apf_obstacle >= 0.:
             reward_apf_obstacle = 0.
         # if reward_apf_weed < 0.:
         #     reward_apf_weed = 0.
         if reward_apf_trajectory >= 0.:
             reward_apf_trajectory = 0.
-        reward_apf = 3.0 * (reward_apf_frontier
+        reward_apf = 1.0 * (reward_apf_frontier
                             + reward_apf_obstacle
                             + reward_apf_weed
                             + reward_apf_trajectory)
@@ -237,6 +238,8 @@ class CppEnvironment(gym.Env):
             0.,
             reward,
         )
+        # if reward > 5:
+        #     pass
         self.weed_num_t = weed_num_tp1
         self.frontier_area_t = frontier_area_tp1
         self.frontier_tv_t = frontier_tv_tp1
@@ -260,15 +263,17 @@ class CppEnvironment(gym.Env):
         return crashed
 
     @staticmethod
-    def get_discounted_apf(map_apf: np.ndarray, max_step: int) -> float:
+    def get_discounted_apf(map_apf: np.ndarray, max_step: int, eps: Optional[float] = None) -> float:
         gamma = (max_step - 1) / max_step
         map_apf = gamma ** map_apf
-        return np.where(map_apf < gamma ** max_step, 0., map_apf)
+        if eps is None:
+            eps = gamma ** max_step
+        return np.where(map_apf < eps, 0., map_apf)
 
     def observation(self) -> dict[str, np.ndarray | float]:
         apf_frontier, is_empty = cpu_apf_bool(np.logical_and(total_variation_mat(self.map_frontier), self.map_mist))
         if not is_empty:
-            apf_frontier = self.get_discounted_apf(apf_frontier, 30)
+            apf_frontier = self.get_discounted_apf(apf_frontier, 30, 1e-2)
             # apf_frontier *= 1 - 2 * self.map_frontier.astype(np.float32)
         # exposed_obstacle = np.logical_and(self.map_obstacle, self.map_mist)
         apf_obstacle, is_empty = cpu_apf_bool(
@@ -287,7 +292,7 @@ class CppEnvironment(gym.Env):
         map_weed_expose = np.logical_and(self.map_weed, np.logical_not(self.map_frontier))
         apf_weed, is_empty = cpu_apf_bool(map_weed_expose)
         if not is_empty:
-            apf_weed = self.get_discounted_apf(apf_weed, 15)
+            apf_weed = self.get_discounted_apf(apf_weed, 20, 1e-2)
         apf_trajectory, is_empty = cpu_apf_bool(self.map_trajectory)
         if not is_empty:
             apf_trajectory = self.get_discounted_apf(apf_trajectory, 4)
@@ -436,6 +441,15 @@ class CppEnvironment(gym.Env):
             np.array((0, 255, 0)),
             rendered_map,
         )
+        if self.render_weed:
+            rendered_map = np.where(
+                np.expand_dims(self.obs_apf[2] != 0, axis=-1),
+                (
+                        np.expand_dims(self.obs_apf[2], axis=-1) * np.array((0, 255, 0))
+                        + np.expand_dims(1 - self.obs_apf[2], axis=-1) * rendered_map
+                ).astype(np.uint8),
+                rendered_map,
+            )
         rendered_map = np.where(
             np.expand_dims(self.map_trajectory, axis=-1),
             np.array((0, 128, 255)),
@@ -670,7 +684,8 @@ class CppEnvironment(gym.Env):
         if self.screen is None:
             pygame.init()
             self.screen = pygame.Surface(
-                (self.state_size[0] * self.render_repeat_times, self.state_size[1] * self.render_repeat_times) if self.state_pixels else (
+                (self.state_size[0] * self.render_repeat_times,
+                 self.state_size[1] * self.render_repeat_times) if self.state_pixels else (
                     self.dimensions[0] * self.render_repeat_times, self.dimensions[1] * self.render_repeat_times)
             )
             # self.screen = pygame.Surface(

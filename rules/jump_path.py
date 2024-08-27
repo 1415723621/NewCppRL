@@ -89,7 +89,7 @@ def go(p2):  # verified
 
     agent_position = [env.agent.y, env.agent.x]
     rad = np.pi / 2 - math.radians(env.agent.direction)
-    discovered = np.argwhere(env.map_weed == 1)
+    discovered = np.argwhere(np.logical_and(env.map_weed, np.logical_not(env.map_frontier)) == 1)
     discovered = [point for point in discovered if is_point_in_polygon(point, farm_vertices)]
     global store
     if store is None:
