@@ -8,7 +8,6 @@ import gymnasium as gym
 import numpy as np
 import torch
 import yaml
-from gymnasium.wrappers import HumanRendering
 from omegaconf import DictConfig
 from torchrl.envs.utils import ExplorationType, set_exploration_type
 from torchrl.record.loggers import get_logger, Logger
@@ -17,7 +16,7 @@ import tqdm
 import envs  # noqa
 from torchrl_utils.local_video_recorder import LocalVideoRecorder
 
-algo_name = 'qlambda'
+algo_name = 'sac'
 base_dir = Path(__file__).parent.parent.parent
 env_cfg = DictConfig(yaml.load(open(f'{base_dir}/configs/env_config.yaml'), Loader=yaml.FullLoader))
 episodes = 5
@@ -28,7 +27,7 @@ device = 'cpu'
 ckpt_root = f'../../ckpt/{algo_name}'
 ckpt_name = sorted(os.listdir(ckpt_root))[-1]
 ckpt_path = f'../../ckpt/{algo_name}/{ckpt_name}'
-# ckpt_path = f'../../ckpt/qlambda/2024-08-27_03-13-30_LongBatch'
+# ckpt_path = '../../ckpt/sac/2024-08-27_22-00-28_LessRewards'
 start_idx = 0
 ckpt_dir = ckpt_path.split('/')[-1]
 
@@ -42,7 +41,6 @@ def eval_actor(env: gym.Env,
     eval_start = time.time()
     with set_exploration_type(ExplorationType.MODE), torch.no_grad():
         for i in tqdm.trange(episodes):
-            ep_start = time.time()
             obs, info = env.reset()
             done = False
             t = 0
@@ -57,7 +55,7 @@ def eval_actor(env: gym.Env,
                     vector = obs['vector']
                 observation = torch.from_numpy(observation).float().to(device).unsqueeze(0)
                 vector = torch.tensor([vector]).float().to(device).unsqueeze(0)
-                action = actor(observation=observation, vector=vector)[0].argmax().item()
+                action = actor(observation=observation, vector=vector)[1].argmax().item()
                 obs, reward, done, _, info = env.step(action)
                 ret += reward
                 t += 1

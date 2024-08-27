@@ -12,18 +12,18 @@ class DeepQNet(nn.Module):
                  cnn_channels: Sequence[int] = (16, 32, 64),
                  kernel_sizes: Sequence[int] = (8, 4, 3),
                  strides: Sequence[int] = (1, 1, 1),
-                 obs_dim=14,
+                 vec_dim=14,
                  hidden_dim=256,
                  action_num=15,
                  cnn_activation_class=nn.ELU,
-                 mlp_activation_class=nn.ReLU,):
+                 mlp_activation_class=nn.ReLU, ):
         super(DeepQNet, self).__init__()
         self.encoder = ConvEncoder(
             raster_shape=raster_shape,
             cnn_channels=cnn_channels,
             kernel_sizes=kernel_sizes,
             strides=strides,
-            vec_dim=obs_dim,
+            vec_dim=vec_dim,
             vec_out=hidden_dim,
             cnn_activation_class=cnn_activation_class,
             mlp_activation_class=mlp_activation_class,

@@ -273,7 +273,7 @@ class CppEnvironment(gym.Env):
     def observation(self) -> dict[str, np.ndarray | float]:
         apf_frontier, is_empty = cpu_apf_bool(np.logical_and(total_variation_mat(self.map_frontier), self.map_mist))
         if not is_empty:
-            apf_frontier = self.get_discounted_apf(apf_frontier, 30, 1e-2)
+            apf_frontier = self.get_discounted_apf(apf_frontier, 30)
             # apf_frontier *= 1 - 2 * self.map_frontier.astype(np.float32)
         # exposed_obstacle = np.logical_and(self.map_obstacle, self.map_mist)
         apf_obstacle, is_empty = cpu_apf_bool(

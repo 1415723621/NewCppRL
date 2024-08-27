@@ -24,7 +24,10 @@ max_step = 800
 video = True
 
 device = 'cpu'
-ckpt_path = f'../../ckpt/dqn/2024-08-27_18-56-37_LessRewards'
+ckpt_root = f'../../ckpt/{algo_name}'
+ckpt_name = sorted(os.listdir(ckpt_root))[-1]
+ckpt_path = f'../../ckpt/{algo_name}/{ckpt_name}'
+# ckpt_path = f'../../ckpt/dqn/2024-08-27_18-56-37_LessRewards'
 start_idx = 0
 ckpt_dir = ckpt_path.split('/')[-1]
 

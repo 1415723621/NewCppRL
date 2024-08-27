@@ -10,26 +10,26 @@ import torch.optim
 import tqdm
 import yaml
 from omegaconf import DictConfig
-from tensordict.nn import TensorDictSequential
+from rl.sac.sac_utils import make_sac_models
+from tensordict import TensorDict
 from torchrl._utils import logger as torchrl_logger
 from torchrl.collectors import MultiaSyncDataCollector
-from torchrl.data import TensorDictPrioritizedReplayBuffer, LazyMemmapStorage
+from torchrl.data import LazyMemmapStorage, TensorDictReplayBuffer, TensorDictPrioritizedReplayBuffer
+from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 from torchrl.envs import ExplorationType, set_exploration_type
-from torchrl.modules import EGreedyModule
-from torchrl.objectives import DQNLoss, HardUpdate
+from torchrl.objectives import ClipPPOLoss, SoftUpdate, DiscreteSACLoss
+from torchrl.objectives.value.advantages import GAE
 from torchrl.record.loggers import get_logger
 
-from rl.dqn.dqn_utils import make_dqn_model
 from torchrl_utils import (
     CustomVideoRecorder,
-    CustomDQNLoss,
-    value_rescale_inv,
     make_env,
     eval_model
 )
 
 base_dir = Path(__file__).parent.parent.parent
-algo_name = 'dqn'
+algo_name = 'sac'
+
 
 def main(cfg: "DictConfig"):  # noqa: F821
     ckpt_dir = time.strftime('%Y-%m-%d_%H-%M-%S', time.localtime())
@@ -54,20 +54,17 @@ def main(cfg: "DictConfig"):  # noqa: F821
 
     # Make the components
     if cfg.pretrained_model:
-        model = torch.load(f'{base_dir}/{cfg.pretrained_model}').to(device)
+        actor_critic = torch.load(f'{base_dir}/{cfg.pretrained_model}')
+        actor_critic = actor_critic.to(device)
     else:
-        model = make_dqn_model()
-
-    greedy_module = EGreedyModule(
-        annealing_num_steps=cfg.collector.annealing_frames,
-        eps_init=cfg.collector.eps_start,
-        eps_end=cfg.collector.eps_end,
-        spec=model.spec,
+        actor_critic = make_sac_models()
+        actor_critic = actor_critic.to(device)
+    torch.save(
+        actor_critic,
+        f'{base_dir}/ckpt/{algo_name}/{ckpt_dir}/t[00000].pt'
     )
-    model_explore = TensorDictSequential(
-        model,
-        greedy_module,
-    ).to(device)
+    actor = actor_critic[0]
+    q_critic = actor_critic[1]
 
     # Create the collector
     collector = MultiaSyncDataCollector(
@@ -75,13 +72,13 @@ def main(cfg: "DictConfig"):  # noqa: F821
             num_envs=1,
             device='cpu',
         )] * cfg.collector.num_envs,
-        policy=model_explore,
+        policy=actor,
         frames_per_batch=cfg.collector.frames_per_batch,
         total_frames=cfg.collector.total_frames,
         device='cpu',
         storing_device='cpu',
         max_frames_per_traj=-1,
-        init_random_frames=cfg.collector.init_random_frames,
+        reset_at_each_iter=True,
     )
 
     # Create the replay buffer
@@ -98,50 +95,37 @@ def main(cfg: "DictConfig"):  # noqa: F821
         ),
         batch_size=cfg.buffer.batch_size,
     )
-    # replay_buffer = TensorDictReplayBuffer(
-    #     pin_memory=False,
-    #     prefetch=prefetch,
-    #     storage=LazyMemmapStorage(
-    #         buffer_size,
-    #         scratch_dir=scratch_dir,
-    #         device="cpu",
-    #         ndim=2,
-    #     ),
-    #     sampler=PrioritizedSliceSampler(
-    #         alpha=0.7,
-    #         beta=0.5,
-    #         slice_len=batch_seq_len,
-    #         strict_length=False,
-    #         traj_key=("collector", "traj_ids"),
-    #         cache_values=True,
-    #         compile=True,
-    #     ),
-    #     batch_size=batch_size,
-    # )
+    loss_module = DiscreteSACLoss(
+        actor_network=actor,
+        qvalue_network=q_critic,
+        num_actions=actor.spec["action"].space.n,
+        num_qvalue_nets=2,
+        loss_function=cfg.loss.loss_function,
+        target_entropy_weight=cfg.loss.target_entropy_weight,
+        delay_qvalue=True,
+    )
+    loss_module.make_value_estimator(gamma=cfg.loss.gamma)
 
-    # Create the loss module
-    loss_module = CustomDQNLoss(
-        value_network=model,
-        loss_function="l2",
-        # loss_function="smooth_l1",
-        delay_value=True,
-        double_dqn=True,
-    )
-    loss_module.make_value_estimator(
-        gamma=cfg.loss.gamma,
-        # value_type=ValueEstimators.TDLambda,
-        # lmbda=0.8,
-    )
-    loss_module = loss_module.to(device)
-    # target_net_updater = SoftUpdate(
-    #     loss_module, eps=0.95
-    # )
-    target_net_updater = HardUpdate(
-        loss_module, value_network_update_interval=cfg.loss.hard_update_freq
-    )
+    # Define Target Network Updater
+    target_net_updater = SoftUpdate(loss_module, eps=cfg.loss.target_update_polyak)
 
     # Create the optimizer
-    optimizer = torch.optim.AdamW(loss_module.parameters(), lr=cfg.optim.lr)
+    critic_params = list(loss_module.qvalue_network_params.flatten_keys().values())
+    actor_params = list(loss_module.actor_network_params.flatten_keys().values())
+    optimizer_actor = torch.optim.Adam(
+        actor_params,
+        lr=cfg.optim.lr,
+        weight_decay=cfg.optim.weight_decay,
+    )
+    optimizer_critic = torch.optim.Adam(
+        critic_params,
+        lr=cfg.optim.lr,
+        weight_decay=cfg.optim.weight_decay,
+    )
+    optimizer_alpha = torch.optim.Adam(
+        [loss_module.log_alpha],
+        lr=3.0e-4,
+    )
 
     # Create the logger
     logger = None
@@ -180,7 +164,7 @@ def main(cfg: "DictConfig"):  # noqa: F821
     #             skip=skip_frames,
     #             make_grid=False,
     #             nrow=2,
-    #             max_len=cfg.logger.test_steps // skip_frames,
+    #             max_len=cfg.logger.test_steps // skip_frames + 10,
     #         ),
     #     )
     # test_env.eval()
@@ -188,15 +172,18 @@ def main(cfg: "DictConfig"):  # noqa: F821
     # Main loop
     collected_frames = 0
     start_time = time.time()
-    # num_updates = cfg.loss.num_updates
-    batch_size = cfg.buffer.batch_size
-    test_interval = cfg.logger.test_interval
-    frames_per_batch = cfg.collector.frames_per_batch
-    pbar = tqdm.tqdm(total=cfg.collector.total_frames)
+
+    # cfg.loss.clip_epsilon = cfg_loss_clip_epsilon
     init_random_frames = cfg.collector.init_random_frames
+    batch_size = cfg.buffer.batch_size
+    frames_per_batch = cfg.collector.frames_per_batch
     num_updates = math.ceil(frames_per_batch / batch_size * cfg.loss.utd_ratio)
-    sampling_start = time.time()
+    test_interval = cfg.logger.test_interval
+    actor_losses = torch.zeros(num_updates, device=device)
     q_losses = torch.zeros(num_updates, device=device)
+    alpha_losses = torch.zeros(num_updates, device=device)
+    pbar = tqdm.tqdm(total=cfg.collector.total_frames)
+    sampling_start = time.time()
 
     for i, data in enumerate(collector):
         log_info = {}
@@ -206,9 +193,8 @@ def main(cfg: "DictConfig"):  # noqa: F821
         current_frames = data.numel()
         replay_buffer.extend(data)
         collected_frames += current_frames
-        greedy_module.step(current_frames)
 
-        # Get and log training rewards and episode lengths
+        # Get training rewards and episode lengths
         episode_rewards = data["next", "episode_reward"][data["next", "done"]]
         if len(episode_rewards) > 0:
             episode_reward_mean = episode_rewards.mean().item()
@@ -227,36 +213,60 @@ def main(cfg: "DictConfig"):  # noqa: F821
                     logger.log_scalar(key, value, step=collected_frames)
             continue
 
-        # optimization steps
         training_start = time.time()
         for j in range(num_updates):
-            sampled_tensordict = replay_buffer.sample(batch_size)
-            sampled_tensordict = sampled_tensordict.to(device)
-            loss_td = loss_module(sampled_tensordict)
-            # loss_id = torch.tensor(0.)
-            q_loss = loss_td["loss"]
-            # total_loss = q_loss
-            optimizer.zero_grad()
-            q_loss.backward()
-            if cfg.optim.max_grad_norm:
-                torch.nn.utils.clip_grad_norm_(
-                    list(loss_module.parameters()), max_norm=cfg.optim.max_grad_norm
+            # Sample from replay buffer
+            sampled_tensordict = replay_buffer.sample()
+            if sampled_tensordict.device != device:
+                sampled_tensordict = sampled_tensordict.to(
+                    device, non_blocking=True
                 )
-            optimizer.step()
-            target_net_updater.step()
-            q_losses[j].copy_(q_loss.detach())
-            replay_buffer.update_tensordict_priority(sampled_tensordict)
-        training_time = time.time() - training_start
+            else:
+                sampled_tensordict = sampled_tensordict.clone()
 
-        # Get and log q-values, loss, epsilon, sampling time and training time
+            # Compute loss
+            loss_out = loss_module(sampled_tensordict)
+
+            actor_loss, q_loss, alpha_loss = (
+                loss_out["loss_actor"],
+                loss_out["loss_qvalue"],
+                loss_out["loss_alpha"],
+            )
+
+            # Update critic
+            optimizer_critic.zero_grad()
+            q_loss.backward()
+            optimizer_critic.step()
+            q_losses[j].copy_(q_loss.detach())
+
+            # Update actor
+            optimizer_actor.zero_grad()
+            actor_loss.backward()
+            optimizer_actor.step()
+
+            actor_losses[j].copy_(actor_loss.detach())
+
+            # Update alpha
+            optimizer_alpha.zero_grad()
+            alpha_loss.backward()
+            optimizer_alpha.step()
+
+            alpha_losses[j].copy_(alpha_loss.detach())
+
+            # Update target params
+            target_net_updater.step()
+
+            # Update priority
+            # if prb:
+            replay_buffer.update_tensordict_priority(sampled_tensordict)
+
+        # Get training losses and times
+        training_time = time.time() - training_start
         log_info.update(
             {
-                "train/q_values": value_rescale_inv((data["action_value"] * data["action"]).sum()).item()
-                                  / frames_per_batch,
-                "train/q_logits": (data["action_value"] * data["action"]).sum().item()
-                                  / frames_per_batch,
                 "train/q_loss": q_losses.mean().item(),
-                "train/epsilon": greedy_module.eps,
+                "train/a_loss": actor_losses.mean().item(),
+                "train/alpha_loss": alpha_losses.mean().item(),
                 "train/sampling_time": sampling_time,
                 "train/training_time": training_time,
             }
@@ -269,30 +279,9 @@ def main(cfg: "DictConfig"):  # noqa: F821
         if (i > 0 and (prev_test_frame < cur_test_frame)) or final:
             model_name = str(collected_frames // 1000).rjust(5, '0')
             torch.save(
-                model,
+                actor_critic,
                 f'{base_dir}/ckpt/{algo_name}/{ckpt_dir}/t[{model_name}].pt'
             )
-            # with torch.no_grad(), set_exploration_type(ExplorationType.MODE):
-            #     model.eval()
-            #     eval_start = time.time()
-            #     td_test = eval_model(model, test_env, cfg.logger.test_steps)
-            #     if td_test["next", "done"].any():
-            #         test_rewards = td_test["next", "episode_reward"][td_test["next", "done"]].mean()
-            #     else:
-            #         test_rewards = td_test["next", "episode_reward"][-1].mean()
-            #     eval_time = time.time() - eval_start
-            #     model.train()
-            #     log_info.update(
-            #         {
-            #             "eval/reward": test_rewards,
-            #             "eval/eval_time": eval_time,
-            #         }
-            #     )
-            #     model_name = str(collected_frames // 1000).rjust(5, '0')
-            #     torch.save(
-            #         model,
-            #         f'{base_dir}/ckpt/{algo_name}/{ckpt_dir}/t[{model_name}]_r[{test_rewards:.2f}].pt'
-            #     )
 
         # Log all the information
         if logger:

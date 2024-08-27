@@ -4,6 +4,7 @@ import tempfile
 import time
 from pathlib import Path
 
+import numpy as np
 import torch.nn
 import torch.optim
 import tqdm
@@ -48,9 +49,12 @@ def main(cfg: "DictConfig"):  # noqa: F821
             device = "cpu"
     device = torch.device(device)
 
+    torch.manual_seed(cfg.seed)
+    np.random.seed(cfg.seed)
+
     # Make the components
     if cfg.pretrained_model:
-        model = torch.load(f'{base_dir}/{algo_name}/{cfg.pretrained_model}').to(device)
+        model = torch.load(f'{base_dir}/{cfg.pretrained_model}').to(device)
     else:
         model = make_qlambda_model()
 

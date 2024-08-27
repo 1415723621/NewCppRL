@@ -36,7 +36,7 @@ def make_dqn_modules(proof_environment):
         cnn_channels=(32, 64, 64),
         kernel_sizes=(3, 3, 3),
         strides=(1, 1, 1),
-        obs_dim=1,
+        vec_dim=1,
         hidden_dim=512,
         action_num=num_outputs,
         cnn_activation_class=None,

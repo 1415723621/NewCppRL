@@ -4,6 +4,7 @@ import tempfile
 import time
 from pathlib import Path
 
+import numpy as np
 import torch.nn
 import torch.optim
 import torch.optim
@@ -49,15 +50,16 @@ def main(cfg: "DictConfig"):  # noqa: F821
             device = "cpu"
     device = torch.device(device)
 
+    torch.manual_seed(cfg.seed)
+    np.random.seed(cfg.seed)
+
     # Make the components
     if cfg.pretrained_model:
-        actor_critic = torch.load(f'{base_dir}/{algo_name}/{cfg.pretrained_model}')
-        actor = actor_critic.get_policy_operator().to(device)
-        critic = actor_critic.get_value_operator().to(device)
+        actor_critic = torch.load(f'{base_dir}/{cfg.pretrained_model}')
     else:
         actor_critic = make_ppo_models()
-        actor = actor_critic.get_policy_operator().to(device)
-        critic = actor_critic.get_value_operator().to(device)
+    actor = actor_critic.get_policy_operator().to(device)
+    critic = actor_critic.get_value_operator().to(device)
     torch.save(
         actor_critic,
         f'{base_dir}/ckpt/{algo_name}/{ckpt_dir}/t[00000]_r[0].pt'
