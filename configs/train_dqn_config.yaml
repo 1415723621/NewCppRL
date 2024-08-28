@@ -1,24 +1,24 @@
 device: null
 #pretrained_model: ckpt/train/2024-08-20_04-34-49_Apf/t[01700]_r[316.39].pt
 pretrained_model: null
-ckpt_name: LessRewards
+ckpt_name: LargerApf
 seed: 42
 
 # collector
 collector:
   total_frames: 4_000_000
-  frames_per_batch: 20
+  frames_per_batch: 40
   num_envs: 8
   eps_start: 1.0
   eps_end: 0.05
-  annealing_frames: 700_000
+  annealing_frames: 2_000_000
   init_random_frames: 10_000
 #  init_random_frames: 0
 
 # buffer
 buffer:
   buffer_size: 500_000
-  batch_size: 256
+  batch_size: 512
 
 # Optim
 optim:
@@ -28,8 +28,9 @@ optim:
 # loss
 loss:
   gamma: 0.99
-  hard_update_freq: 1500
+  hard_update_freq: 1000
   utd_ratio: 1
+  loss_type: l2
 
 # logger
 logger:

@@ -205,16 +205,16 @@ class CppEnvironment(gym.Env):
         # Frontier
         reward_frontier_coverage = (self.frontier_area_t - frontier_area_tp1) / (
                 2 * MowerAgent.width * self.v_range.max)
-        reward_frontier_tv = 1.0 * (self.frontier_tv_t - frontier_tv_tp1) / self.v_range.max
-        reward_frontier = 0.25 * (reward_frontier_coverage
+        reward_frontier_tv = 0.05 * (self.frontier_tv_t - frontier_tv_tp1) / self.v_range.max
+        reward_frontier = 0.125 * (reward_frontier_coverage
                                   + reward_frontier_tv
                                   )
         # Weed
         reward_weed = 5.0 * (weed_num_tp1 - self.weed_num_t)
         # Apf
-        reward_apf_frontier = 0.2 * (self.obs_apf[0][y_tp1, x_tp1] - self.obs_apf[0][y_t, x_t])
+        reward_apf_frontier = 0.0 * (self.obs_apf[0][y_tp1, x_tp1] - self.obs_apf[0][y_t, x_t])
         reward_apf_obstacle = -0.5 * (self.obs_apf[1][y_tp1, x_tp1] - self.obs_apf[1][y_t, x_t])
-        reward_apf_weed = 3.0 * (self.obs_apf[2][y_tp1, x_tp1] - self.obs_apf[2][y_t, x_t])
+        reward_apf_weed = 5.0 * (self.obs_apf[2][y_tp1, x_tp1] - self.obs_apf[2][y_t, x_t])
         reward_apf_trajectory = -0.0 * (self.obs_apf[3][y_tp1, x_tp1] - self.obs_apf[3][y_t, x_t])
         if reward_apf_obstacle >= 0.:
             reward_apf_obstacle = 0.

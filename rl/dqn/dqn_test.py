@@ -18,7 +18,7 @@ render = True
 device = 'cpu'
 # pt_path = f'../ckpt/train/2024-08-24_03-56-49_CnnElu/t[00400]_r[1650.20].pt'
 # pt_path = f'../ckpt/train/2024-08-24_03-56-49_CnnElu/t[01650]_r[1215.28].pt'
-pt_path = f'../../ckpt/dqn/2024-08-27_18-56-37_LessRewards/t[02000]_r[-647.85±83.99].pt'
+pt_path = f'../../ckpt/dqn/2024-08-28_00-49-06_LargerApf/t[04000]_r[-671.12±121.58].pt'
 model = torch.load(pt_path).to(device)
 actor = model[0]
 

@@ -85,6 +85,7 @@ def eval_actor(env: gym.Env,
 
 
 if __name__ == '__main__':
+    print(f'Dir: {ckpt_path}')
     train_cfg = yaml.load(open(f'{base_dir}/configs/train_{algo_name}_config.yaml'), Loader=yaml.FullLoader)
     train_cfg = DictConfig(train_cfg)
     logger = None

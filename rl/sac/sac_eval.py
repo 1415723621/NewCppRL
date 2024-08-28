@@ -39,7 +39,7 @@ def eval_actor(env: gym.Env,
                recorder: Optional[LocalVideoRecorder]):
     rewards = []
     eval_start = time.time()
-    with set_exploration_type(ExplorationType.MODE), torch.no_grad():
+    with set_exploration_type(ExplorationType.DETERMINISTIC), torch.no_grad():
         for _ in tqdm.trange(episodes):
             obs, info = env.reset()
             done = False
