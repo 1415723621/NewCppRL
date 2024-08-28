@@ -14,9 +14,9 @@ from tensordict.nn import TensorDictSequential
 from torchrl._utils import logger as torchrl_logger
 from torchrl.collectors import MultiaSyncDataCollector
 from torchrl.data import TensorDictPrioritizedReplayBuffer, LazyMemmapStorage
-from torchrl.envs import Compose, MultiStepTransform
+from torchrl.envs import MultiStepTransform
 from torchrl.modules import EGreedyModule
-from torchrl.objectives import HardUpdate, SoftUpdate, DQNLoss
+from torchrl.objectives import HardUpdate, DQNLoss
 from torchrl.record.loggers import get_logger
 
 from rl.dqn.dqn_utils import make_dqn_model
@@ -28,6 +28,7 @@ from torchrl_utils import (
 
 base_dir = Path(__file__).parent.parent.parent
 algo_name = 'dqn'
+
 
 def main(cfg: "DictConfig"):  # noqa: F821
     ckpt_dir = time.strftime('%Y%m%d_%H%M%S', time.localtime())[2:]
@@ -97,26 +98,6 @@ def main(cfg: "DictConfig"):  # noqa: F821
         batch_size=cfg.buffer.batch_size,
         transform=MultiStepTransform(n_steps=cfg.loss.nstep, gamma=cfg.loss.gamma),
     )
-    # replay_buffer = TensorDictReplayBuffer(
-    #     pin_memory=False,
-    #     prefetch=prefetch,
-    #     storage=LazyMemmapStorage(
-    #         buffer_size,
-    #         scratch_dir=scratch_dir,
-    #         device="cpu",
-    #         ndim=2,
-    #     ),
-    #     sampler=PrioritizedSliceSampler(
-    #         alpha=0.7,
-    #         beta=0.5,
-    #         slice_len=batch_seq_len,
-    #         strict_length=False,
-    #         traj_key=("collector", "traj_ids"),
-    #         cache_values=True,
-    #         compile=True,
-    #     ),
-    #     batch_size=batch_size,
-    # )
 
     # Create the loss module
     if cfg.loss.use_value_rescale:
@@ -135,13 +116,8 @@ def main(cfg: "DictConfig"):  # noqa: F821
         )
     loss_module.make_value_estimator(
         gamma=cfg.loss.gamma,
-        # value_type=ValueEstimators.TDLambda,
-        # lmbda=0.8,
     )
     loss_module = loss_module.to(device)
-    # target_net_updater = SoftUpdate(
-    #     loss_module, eps=0.95
-    # )
     target_net_updater = HardUpdate(
         loss_module, value_network_update_interval=cfg.loss.hard_update_freq
     )
@@ -168,33 +144,9 @@ def main(cfg: "DictConfig"):  # noqa: F821
                 experiment_name=ckpt_dir,
             )
 
-    # Create the test environment
-    # test_env = make_env(
-    #     num_envs=1,
-    #     # device=device,
-    #     device='cpu',
-    #     from_pixels=cfg.logger.video,
-    # )
-    # if cfg.logger.video:
-    #     skip_frames = 20
-    #     test_env.insert_transform(
-    #         0,
-    #         CustomVideoRecorder(
-    #             logger,
-    #             tag=f"eval/video",
-    #             in_keys=["pixels"],
-    #             skip=skip_frames,
-    #             make_grid=False,
-    #             nrow=2,
-    #             max_len=cfg.logger.test_steps // skip_frames,
-    #         ),
-    #     )
-    # test_env.eval()
-
     # Main loop
     collected_frames = 0
     start_time = time.time()
-    # num_updates = cfg.loss.num_updates
     batch_size = cfg.buffer.batch_size
     test_interval = cfg.logger.test_interval
     frames_per_batch = cfg.collector.frames_per_batch
@@ -239,9 +191,7 @@ def main(cfg: "DictConfig"):  # noqa: F821
             sampled_tensordict = replay_buffer.sample(batch_size)
             sampled_tensordict = sampled_tensordict.to(device)
             loss_td = loss_module(sampled_tensordict)
-            # loss_id = torch.tensor(0.)
             q_loss = loss_td["loss"]
-            # total_loss = q_loss
             optimizer.zero_grad()
             q_loss.backward()
             if cfg.optim.max_grad_norm:
@@ -256,6 +206,14 @@ def main(cfg: "DictConfig"):  # noqa: F821
 
         # Get and log q-values, loss, epsilon, sampling time and training time
 
+        log_info.update(
+            {
+                "train/q_loss": q_losses.mean().item(),
+                "train/epsilon": greedy_module.eps,
+                "train/sampling_time": sampling_time,
+                "train/training_time": training_time,
+            }
+        )
         if cfg.loss.use_value_rescale:
             log_info.update(
                 {
@@ -263,10 +221,6 @@ def main(cfg: "DictConfig"):  # noqa: F821
                                       / frames_per_batch,
                     "train/q_logits": (data["action_value"] * data["action"]).sum().item()
                                       / frames_per_batch,
-                    "train/q_loss": q_losses.mean().item(),
-                    "train/epsilon": greedy_module.eps,
-                    "train/sampling_time": sampling_time,
-                    "train/training_time": training_time,
                 }
             )
         else:
@@ -274,10 +228,6 @@ def main(cfg: "DictConfig"):  # noqa: F821
                 {
                     "train/q_values": (data["action_value"] * data["action"]).sum().item()
                                       / frames_per_batch,
-                    "train/q_loss": q_losses.mean().item(),
-                    "train/epsilon": greedy_module.eps,
-                    "train/sampling_time": sampling_time,
-                    "train/training_time": training_time,
                 }
             )
         # Get and log evaluation rewards and eval time
@@ -290,27 +240,6 @@ def main(cfg: "DictConfig"):  # noqa: F821
                 model,
                 f'{base_dir}/ckpt/{algo_name}/{ckpt_dir}/t[{model_name}].pt'
             )
-            # with torch.no_grad(), set_exploration_type(ExplorationType.MODE):
-            #     model.eval()
-            #     eval_start = time.time()
-            #     td_test = eval_model(model, test_env, cfg.logger.test_steps)
-            #     if td_test["next", "done"].any():
-            #         test_rewards = td_test["next", "episode_reward"][td_test["next", "done"]].mean()
-            #     else:
-            #         test_rewards = td_test["next", "episode_reward"][-1].mean()
-            #     eval_time = time.time() - eval_start
-            #     model.train()
-            #     log_info.update(
-            #         {
-            #             "eval/reward": test_rewards,
-            #             "eval/eval_time": eval_time,
-            #         }
-            #     )
-            #     model_name = str(collected_frames // 1000).rjust(5, '0')
-            #     torch.save(
-            #         model,
-            #         f'{base_dir}/ckpt/{algo_name}/{ckpt_dir}/t[{model_name}]_r[{test_rewards:.2f}].pt'
-            #     )
 
         # Log all the information
         if logger:
