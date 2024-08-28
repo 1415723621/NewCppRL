@@ -205,8 +205,8 @@ class CppEnvironment(gym.Env):
         # Frontier
         reward_frontier_coverage = (self.frontier_area_t - frontier_area_tp1) / (
                 2 * MowerAgent.width * self.v_range.max)
-        reward_frontier_tv = 0.05 * (self.frontier_tv_t - frontier_tv_tp1) / self.v_range.max
-        reward_frontier = 0.125 * (reward_frontier_coverage
+        reward_frontier_tv = 0.02 * (self.frontier_tv_t - frontier_tv_tp1) / self.v_range.max
+        reward_frontier = 0.25 * (reward_frontier_coverage
                                   + reward_frontier_tv
                                   )
         # Weed
@@ -292,7 +292,7 @@ class CppEnvironment(gym.Env):
         map_weed_expose = np.logical_and(self.map_weed, np.logical_not(self.map_frontier))
         apf_weed, is_empty = cpu_apf_bool(map_weed_expose)
         if not is_empty:
-            apf_weed = self.get_discounted_apf(apf_weed, 20, 1e-2)
+            apf_weed = self.get_discounted_apf(apf_weed, 10, 1e-2)
         apf_trajectory, is_empty = cpu_apf_bool(self.map_trajectory)
         if not is_empty:
             apf_trajectory = self.get_discounted_apf(apf_trajectory, 4)

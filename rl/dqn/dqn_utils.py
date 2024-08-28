@@ -33,14 +33,14 @@ def make_dqn_modules(proof_environment):
     # dqn = torch.nn.Sequential(cnn, mlp, dueling_head)
     dqn = DeepQNet(
         raster_shape=input_shape,
-        cnn_channels=(32, 64, 64),
+        cnn_channels=(32, 64, 128),
         kernel_sizes=(3, 3, 3),
         strides=(1, 1, 1),
         vec_dim=1,
         hidden_dim=512,
         action_num=num_outputs,
-        cnn_activation_class=None,
-        mlp_activation_class=torch.nn.SiLU,
+        cnn_activation_class=torch.nn.ReLU,
+        mlp_activation_class=torch.nn.ReLU,
     )
     # dqn = MLP(
     #     in_features=input_shape[-1],

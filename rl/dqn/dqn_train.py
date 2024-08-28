@@ -14,6 +14,7 @@ from tensordict.nn import TensorDictSequential
 from torchrl._utils import logger as torchrl_logger
 from torchrl.collectors import MultiaSyncDataCollector
 from torchrl.data import TensorDictPrioritizedReplayBuffer, LazyMemmapStorage
+from torchrl.envs import Compose, MultiStepTransform
 from torchrl.modules import EGreedyModule
 from torchrl.objectives import HardUpdate, SoftUpdate
 from torchrl.record.loggers import get_logger
@@ -94,6 +95,7 @@ def main(cfg: "DictConfig"):  # noqa: F821
             scratch_dir=scratch_dir,
         ),
         batch_size=cfg.buffer.batch_size,
+        transform=MultiStepTransform(n_steps=7, gamma=cfg.loss.gamma),
     )
     # replay_buffer = TensorDictReplayBuffer(
     #     pin_memory=False,
@@ -130,12 +132,12 @@ def main(cfg: "DictConfig"):  # noqa: F821
         # lmbda=0.8,
     )
     loss_module = loss_module.to(device)
-    target_net_updater = SoftUpdate(
-        loss_module, eps=0.95
-    )
-    # target_net_updater = HardUpdate(
-    #     loss_module, value_network_update_interval=cfg.loss.hard_update_freq
+    # target_net_updater = SoftUpdate(
+    #     loss_module, eps=0.95
     # )
+    target_net_updater = HardUpdate(
+        loss_module, value_network_update_interval=cfg.loss.hard_update_freq
+    )
 
     # Create the optimizer
     optimizer = torch.optim.AdamW(loss_module.parameters(), lr=cfg.optim.lr)

@@ -7,8 +7,8 @@ seed: 42
 # collector
 collector:
   total_frames: 4_000_000
-  frames_per_batch: 40
-  num_envs: 8
+  frames_per_batch: 20
+  num_envs: 16
   eps_start: 1.0
   eps_end: 0.05
   annealing_frames: 2_000_000
@@ -17,8 +17,8 @@ collector:
 
 # buffer
 buffer:
-  buffer_size: 500_000
-  batch_size: 512
+  buffer_size: 2_000_000
+  batch_size: 256
 
 # Optim
 optim:
@@ -28,13 +28,13 @@ optim:
 # loss
 loss:
   gamma: 0.99
-  hard_update_freq: 1000
+  hard_update_freq: 800
   utd_ratio: 1
   loss_type: l2
 
 # logger
 logger:
-  backend: tensorboard
+  backend: wandb
   model_name: DQN
   exp_name: Train
   test_interval: 100_000
