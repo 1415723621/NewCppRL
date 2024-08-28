@@ -74,8 +74,8 @@ class NumericalRange:
 
 
 class MowerAgent:
-    width = 2.5
-    length = 5
+    width = 4
+    length = 6
     occupancy = math.hypot(width, length)
     lw_ratio = math.degrees(math.atan2(width / occupancy, length / occupancy))
 

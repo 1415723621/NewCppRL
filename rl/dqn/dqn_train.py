@@ -16,7 +16,7 @@ from torchrl.collectors import MultiaSyncDataCollector
 from torchrl.data import TensorDictPrioritizedReplayBuffer, LazyMemmapStorage
 from torchrl.envs import Compose, MultiStepTransform
 from torchrl.modules import EGreedyModule
-from torchrl.objectives import HardUpdate, SoftUpdate
+from torchrl.objectives import HardUpdate, SoftUpdate, DQNLoss
 from torchrl.record.loggers import get_logger
 
 from rl.dqn.dqn_utils import make_dqn_model
@@ -30,7 +30,7 @@ base_dir = Path(__file__).parent.parent.parent
 algo_name = 'dqn'
 
 def main(cfg: "DictConfig"):  # noqa: F821
-    ckpt_dir = time.strftime('%Y-%m-%d_%H-%M-%S', time.localtime())
+    ckpt_dir = time.strftime('%Y%m%d_%H%M%S', time.localtime())[2:]
     if cfg.ckpt_name:
         ckpt_dir += f'_{cfg.ckpt_name}'
     if not Path(f'{base_dir}/ckpt').exists():
@@ -119,13 +119,20 @@ def main(cfg: "DictConfig"):  # noqa: F821
     # )
 
     # Create the loss module
-    loss_module = CustomDQNLoss(
-        value_network=model,
-        loss_function=cfg.loss.loss_type,
-        # loss_function="smooth_l1",
-        delay_value=True,
-        double_dqn=True,
-    )
+    if cfg.loss.use_value_rescale:
+        loss_module = CustomDQNLoss(
+            value_network=model,
+            loss_function=cfg.loss.loss_type,
+            delay_value=True,
+            double_dqn=True,
+        )
+    else:
+        loss_module = DQNLoss(
+            value_network=model,
+            loss_function=cfg.loss.loss_type,
+            delay_value=True,
+            double_dqn=True,
+        )
     loss_module.make_value_estimator(
         gamma=cfg.loss.gamma,
         # value_type=ValueEstimators.TDLambda,
@@ -248,19 +255,31 @@ def main(cfg: "DictConfig"):  # noqa: F821
         training_time = time.time() - training_start
 
         # Get and log q-values, loss, epsilon, sampling time and training time
-        log_info.update(
-            {
-                "train/q_values": value_rescale_inv((data["action_value"] * data["action"]).sum()).item()
-                                  / frames_per_batch,
-                "train/q_logits": (data["action_value"] * data["action"]).sum().item()
-                                  / frames_per_batch,
-                "train/q_loss": q_losses.mean().item(),
-                "train/epsilon": greedy_module.eps,
-                "train/sampling_time": sampling_time,
-                "train/training_time": training_time,
-            }
-        )
 
+        if cfg.loss.use_value_rescale:
+            log_info.update(
+                {
+                    "train/q_values": value_rescale_inv((data["action_value"] * data["action"]).sum()).item()
+                                      / frames_per_batch,
+                    "train/q_logits": (data["action_value"] * data["action"]).sum().item()
+                                      / frames_per_batch,
+                    "train/q_loss": q_losses.mean().item(),
+                    "train/epsilon": greedy_module.eps,
+                    "train/sampling_time": sampling_time,
+                    "train/training_time": training_time,
+                }
+            )
+        else:
+            log_info.update(
+                {
+                    "train/q_values": (data["action_value"] * data["action"]).sum().item()
+                                      / frames_per_batch,
+                    "train/q_loss": q_losses.mean().item(),
+                    "train/epsilon": greedy_module.eps,
+                    "train/sampling_time": sampling_time,
+                    "train/training_time": training_time,
+                }
+            )
         # Get and log evaluation rewards and eval time
         prev_test_frame = ((i - 1) * frames_per_batch) // test_interval
         cur_test_frame = (i * frames_per_batch) // test_interval

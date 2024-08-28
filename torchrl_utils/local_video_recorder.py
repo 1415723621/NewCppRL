@@ -25,6 +25,8 @@ class LocalVideoRecorder:
             make_grid: bool | None = None,
             fps: int | None = None,
     ) -> None:
+        if make_grid:
+            assert nrow is not None and nrow > 0
         self.nrow = nrow
         self.fps = 6 if fps is None else fps
         self.iter = 0

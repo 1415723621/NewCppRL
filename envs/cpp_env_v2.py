@@ -177,7 +177,7 @@ class CppEnvironment(gym.Env):
         cv2.line(self.map_trajectory, pt1=(x_t, y_t), pt2=(x_tp1, y_tp1), color=(1.,))
         reward = self.get_reward(steer, x_t, y_t, x_tp1, y_tp1)
         if crashed:
-            reward -= 200.
+            reward -= 100.
         self.t += 1
         time_out = self.t == 2000
         finish = self.weed_num_t == 0 and self.frontier_area_t == 0
@@ -195,14 +195,14 @@ class CppEnvironment(gym.Env):
         frontier_area_tp1 = self.map_frontier.sum(dtype=np.int32)
         frontier_tv_tp1 = total_variation(self.map_frontier.astype(np.int32))
         # Const
-        reward_const = -1.
+        reward_const = -0.1
         # Turning
         reward_turn_gap = -0.5 * abs(steer_tp1 - self.steer_t) / self.w_range.max
         reward_turn_direction = -0.30 * (0. if (steer_tp1 * self.steer_t >= 0
                                                 or (steer_tp1 == 0 and self.steer_t == 0))
                                          else 1.)
         reward_turn_self = 0.25 * (0.4 - abs(steer_tp1 / self.w_range.max) ** 0.5)
-        reward_turn = 0.0 * (reward_turn_gap
+        reward_turn = 0.1 * (reward_turn_gap
                              + reward_turn_direction
                              + reward_turn_self
                              )
