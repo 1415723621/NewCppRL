@@ -170,10 +170,14 @@ class CppEnvironment(gym.Env):
                     )
         crashed = self.check_collision()
         x_tp1, y_tp1 = self.agent.position_discrete
+        x_t = max(min(x_t, self.dimensions[0] - 1), 0)
+        y_t = max(min(y_t, self.dimensions[1] - 1), 0)
+        x_tp1 = max(min(x_tp1, self.dimensions[0] - 1), 0)
+        y_tp1 = max(min(y_tp1, self.dimensions[1] - 1), 0)
         cv2.line(self.map_trajectory, pt1=(x_t, y_t), pt2=(x_tp1, y_tp1), color=(1.,))
         reward = self.get_reward(steer, x_t, y_t, x_tp1, y_tp1)
         if crashed:
-            reward -= 500.
+            reward -= 200.
         self.t += 1
         time_out = self.t == 2000
         finish = self.weed_num_t == 0 and self.frontier_area_t == 0
@@ -213,7 +217,7 @@ class CppEnvironment(gym.Env):
         reward_weed = 5.0 * (weed_num_tp1 - self.weed_num_t)
         # Apf
         reward_apf_frontier = 0.0 * (self.obs_apf[0][y_tp1, x_tp1] - self.obs_apf[0][y_t, x_t])
-        reward_apf_obstacle = -0.5 * (self.obs_apf[1][y_tp1, x_tp1] - self.obs_apf[1][y_t, x_t])
+        reward_apf_obstacle = -0.2 * (self.obs_apf[1][y_tp1, x_tp1] - self.obs_apf[1][y_t, x_t])
         reward_apf_weed = 5.0 * (self.obs_apf[2][y_tp1, x_tp1] - self.obs_apf[2][y_t, x_t])
         reward_apf_trajectory = -0.0 * (self.obs_apf[3][y_tp1, x_tp1] - self.obs_apf[3][y_t, x_t])
         if reward_apf_obstacle >= 0.:

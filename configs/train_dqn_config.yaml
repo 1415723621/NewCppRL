@@ -1,7 +1,7 @@
 device: null
 #pretrained_model: ckpt/train/2024-08-20_04-34-49_Apf/t[01700]_r[316.39].pt
 pretrained_model: null
-ckpt_name: LargerApf
+ckpt_name: nstep=5
 seed: 42
 
 # collector
@@ -12,8 +12,8 @@ collector:
   eps_start: 1.0
   eps_end: 0.05
   annealing_frames: 2_000_000
-  init_random_frames: 10_000
-#  init_random_frames: 0
+#  init_random_frames: 10_000
+  init_random_frames: 0
 
 # buffer
 buffer:
@@ -28,7 +28,8 @@ optim:
 # loss
 loss:
   gamma: 0.99
-  hard_update_freq: 800
+  nstep: 5
+  hard_update_freq: 1000
   utd_ratio: 1
   loss_type: l2
 

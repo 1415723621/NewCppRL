@@ -95,7 +95,7 @@ def main(cfg: "DictConfig"):  # noqa: F821
             scratch_dir=scratch_dir,
         ),
         batch_size=cfg.buffer.batch_size,
-        transform=MultiStepTransform(n_steps=7, gamma=cfg.loss.gamma),
+        transform=MultiStepTransform(n_steps=cfg.loss.nstep, gamma=cfg.loss.gamma),
     )
     # replay_buffer = TensorDictReplayBuffer(
     #     pin_memory=False,
