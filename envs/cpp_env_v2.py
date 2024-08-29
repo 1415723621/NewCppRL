@@ -35,7 +35,7 @@ class CppEnvironment(gym.Env):
 
     obstacle_size_range = (10, 40)
 
-    render_repeat_times = 1
+    render_repeat_times = 2
     # render_farmland_outsides = True
     render_farmland_outsides = False
     render_weed = False
@@ -220,7 +220,7 @@ class CppEnvironment(gym.Env):
         reward_weed = 5.0 * (self.weed_num_t - weed_num_tp1)
         # Apf
         reward_apf_frontier = 0.0 * (self.obs_apf[0][y_tp1, x_tp1] - self.obs_apf[0][y_t, x_t])
-        reward_apf_obstacle = -0.5 * (self.obs_apf[1][y_tp1, x_tp1] - self.obs_apf[1][y_t, x_t])
+        reward_apf_obstacle = -0.2 * (self.obs_apf[1][y_tp1, x_tp1] - self.obs_apf[1][y_t, x_t])
         reward_apf_weed = 5.0 * (self.obs_apf[2][y_tp1, x_tp1] - self.obs_apf[2][y_t, x_t])
         reward_apf_trajectory = -0.01 * (self.obs_apf[3][y_tp1, x_tp1] - self.obs_apf[3][y_t, x_t])
         if reward_apf_obstacle >= 0.:
@@ -337,8 +337,10 @@ class CppEnvironment(gym.Env):
         #     apf_obstacle = self.get_discounted_apf(apf_obstacle, 6)
         #     apf_obstacle = np.maximum(apf_obstacle, exposed_obstacle)
         # obs_rotated[:, :, 1] = apf_obstacle
-
-        obs_rotated_resize = cv2.resize(obs_rotated, self.state_downsize)
+        if self.state_downsize != self.state_size:
+            obs_rotated_resize = cv2.resize(obs_rotated, self.state_downsize)
+        else:
+            obs_rotated_resize = obs_rotated
         obs = obs_rotated_resize.transpose(2, 0, 1)
         if self.use_sgcnn:
             obs = self.get_sgcnn_obs(obs)
@@ -500,7 +502,6 @@ class CppEnvironment(gym.Env):
             rendered_map,
             (rendered_map * 0.5).astype(np.uint8),
         )
-        rendered_map = rendered_map.repeat(self.render_repeat_times, axis=0).repeat(self.render_repeat_times, axis=1)
         return rendered_map
 
     def render_self(self) -> np.ndarray:
@@ -528,7 +529,6 @@ class CppEnvironment(gym.Env):
         rendered_map[:self.state_size[0], :self.state_size[0]] = obs_rotated
         # rendered_map = rendered_map.repeat(self.render_repeat_times, axis=0).repeat(self.render_repeat_times, axis=1)
         # return rendered_map
-        obs_rotated = obs_rotated.repeat(self.render_repeat_times, axis=0).repeat(self.render_repeat_times, axis=1)
         return obs_rotated
 
     def reset(
@@ -708,6 +708,7 @@ class CppEnvironment(gym.Env):
             img = self.render_self()
         else:
             img = self.render_map()
+        img = img.repeat(self.render_repeat_times, axis=0).repeat(self.render_repeat_times, axis=1)
         surf = pygame.surfarray.make_surface(img)
         self.screen.blit(surf, (0, 0))
         return np.transpose(
@@ -739,8 +740,8 @@ if __name__ == "__main__":
         })
         done = False
         while not done:
-            # action = env.action_space.sample()
-            action = 1 * 21 + 10
+            action = env.action_space.sample()
+            # action = 1 * 21 + 10
             obs, reward, done, _, info = env.step(action)
             # obs, reward, done, _, info = env.step((0, 4))
             print(reward)

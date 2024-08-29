@@ -16,9 +16,8 @@ episodes = 10
 render = True
 
 device = 'cpu'
-# pt_path = f'../ckpt/train/2024-08-24_03-56-49_CnnElu/t[00400]_r[1650.20].pt'
-# pt_path = f'../ckpt/train/2024-08-24_03-56-49_CnnElu/t[01650]_r[1215.28].pt'
-pt_path = f'../../ckpt/dqn/2024-08-28_00-49-06_LargerApf/t[04000]_r[-671.12±121.58].pt'
+# pt_path = f'../../ckpt/dqn/2024-08-28_00-49-06_LargerApf/t[04000]_r[-671.12±121.58].pt'
+pt_path = f'../../ckpt/t[01950]_r[517.41=434.62~622.00].pt'
 model = torch.load(pt_path).to(device)
 actor = model[0]
 
@@ -27,6 +26,8 @@ actor = model[0]
 env = gym.make(
     render_mode='rgb_array' if render else None,
     **cfg.env.params,
+    # state_pixels=True,
+    state_pixels=False,
 )
 if render:
     env = HumanRendering(env)
