@@ -1,7 +1,7 @@
 device: null
 #pretrained_model: ckpt/train/2024-08-20_04-34-49_Apf/t[01700]_r[316.39].pt
 pretrained_model: null
-ckpt_name: nstep=7_bs=2048_act=32
+ckpt_name: nstep=1_bs=2048_act=32
 seed: 42
 
 # collector
@@ -11,13 +11,13 @@ collector:
   num_envs: 32
   eps_start: 1.0
   eps_end: 0.05
-  annealing_frames: 2_000_000
-#  init_random_frames: 10_000
-  init_random_frames: 0
+  annealing_frames: 2_500_000
+  init_random_frames: 20_000
+#  init_random_frames: 0
 
 # buffer
 buffer:
-  buffer_size: 2_000_000
+  buffer_size: 800_000
   batch_size: 2048
 
 # Optim
@@ -28,8 +28,8 @@ optim:
 # loss
 loss:
   gamma: 0.99
-  nstep: 7
-  hard_update_freq: 1000
+  nstep: 1
+  hard_update_freq: 2500
   utd_ratio: 1
   loss_type: l2
   use_value_rescale: True

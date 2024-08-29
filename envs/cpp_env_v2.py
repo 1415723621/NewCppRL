@@ -29,13 +29,13 @@ class CppEnvironment(gym.Env):
     vision_length = 28
     vision_angle = 75
 
-    v_range = NumericalRange(0.0, 3.5)
-    w_range = NumericalRange(-28.6, 28.6)
-    nvec = (7, 21)
+    v_range = NumericalRange(0.0, 3.0)
+    w_range = NumericalRange(-28.0, 28.0)
+    nvec = (6, 15)
 
-    obstacle_size_range = (10, 40)
+    obstacle_size_range = (10, 30)
 
-    render_repeat_times = 2
+    render_repeat_times = 1
     # render_farmland_outsides = True
     render_farmland_outsides = False
     render_weed = False
@@ -205,7 +205,7 @@ class CppEnvironment(gym.Env):
                                                 or (steer_tp1 == 0 and self.steer_t == 0))
                                          else 1.)
         reward_turn_self = 0.25 * (0.4 - abs(steer_tp1 / self.w_range.max) ** 0.5)
-        reward_turn = 0.01 * (reward_turn_gap
+        reward_turn = 0.5 * (reward_turn_gap
                              + reward_turn_direction
                              + reward_turn_self
                              )
@@ -214,15 +214,15 @@ class CppEnvironment(gym.Env):
                 2 * MowerAgent.width * self.v_range.max)
         reward_frontier_tv = 0.5 * (self.frontier_tv_t - frontier_tv_tp1) / self.v_range.max
         reward_frontier = 0.125 * (reward_frontier_coverage
-                                  + reward_frontier_tv
-                                  )
+                                   + reward_frontier_tv
+                                   )
         # Weed
-        reward_weed = 5.0 * (self.weed_num_t - weed_num_tp1)
+        reward_weed = 20.0 * (self.weed_num_t - weed_num_tp1)
         # Apf
         reward_apf_frontier = 0.0 * (self.obs_apf[0][y_tp1, x_tp1] - self.obs_apf[0][y_t, x_t])
         reward_apf_obstacle = -0.2 * (self.obs_apf[1][y_tp1, x_tp1] - self.obs_apf[1][y_t, x_t])
         reward_apf_weed = 5.0 * (self.obs_apf[2][y_tp1, x_tp1] - self.obs_apf[2][y_t, x_t])
-        reward_apf_trajectory = -0.01 * (self.obs_apf[3][y_tp1, x_tp1] - self.obs_apf[3][y_t, x_t])
+        reward_apf_trajectory = -0.5 * (self.obs_apf[3][y_tp1, x_tp1] - self.obs_apf[3][y_t, x_t])
         if reward_apf_obstacle >= 0.:
             reward_apf_obstacle = 0.
         # if reward_apf_weed < 0.:
@@ -299,7 +299,7 @@ class CppEnvironment(gym.Env):
         map_weed_expose = np.logical_and(self.map_weed, np.logical_not(self.map_frontier))
         apf_weed, is_empty = cpu_apf_bool(map_weed_expose)
         if not is_empty:
-            apf_weed = self.get_discounted_apf(apf_weed, 20, 1e-2)
+            apf_weed = self.get_discounted_apf(apf_weed, 40, 1e-2)
         apf_trajectory, is_empty = cpu_apf_bool(self.map_trajectory)
         if not is_empty:
             apf_trajectory = self.get_discounted_apf(apf_trajectory, 4)
@@ -337,10 +337,11 @@ class CppEnvironment(gym.Env):
         #     apf_obstacle = self.get_discounted_apf(apf_obstacle, 6)
         #     apf_obstacle = np.maximum(apf_obstacle, exposed_obstacle)
         # obs_rotated[:, :, 1] = apf_obstacle
-        if self.state_downsize != self.state_size:
-            obs_rotated_resize = cv2.resize(obs_rotated, self.state_downsize)
-        else:
-            obs_rotated_resize = obs_rotated
+        # if self.state_downsize != self.state_size:
+        #     obs_rotated_resize = cv2.resize(obs_rotated, self.state_downsize)
+        # else:
+        #     obs_rotated_resize = obs_rotated
+        obs_rotated_resize = cv2.resize(obs_rotated, self.state_downsize)
         obs = obs_rotated_resize.transpose(2, 0, 1)
         if self.use_sgcnn:
             obs = self.get_sgcnn_obs(obs)
