@@ -1,23 +1,23 @@
 device: null
 #pretrained_model: ckpt/train/2024-08-20_04-34-49_Apf/t[01700]_r[316.39].pt
 pretrained_model: null
-ckpt_name: nstep=7_bs=2048_act=32
+ckpt_name: nstep=3_bs=2048_act=24
 seed: 42
 
 # collector
 collector:
-  total_frames: 4_000_000
+  total_frames: 2_000_000
   frames_per_batch: 20
-  num_envs: 32
+  num_envs: 24
   eps_start: 1.0
   eps_end: 0.05
-  annealing_frames: 2_000_000
-#  init_random_frames: 10_000
-  init_random_frames: 0
+  annealing_frames: 1_200_000
+  init_random_frames: 10_000
+#  init_random_frames: 0
 
 # buffer
 buffer:
-  buffer_size: 2_000_000
+  buffer_size: 800_000
   batch_size: 2048
 
 # Optim
@@ -28,8 +28,8 @@ optim:
 # loss
 loss:
   gamma: 0.99
-  nstep: 7
-  hard_update_freq: 1000
+  nstep: 3
+  hard_update_freq: 500
   utd_ratio: 1
   loss_type: l2
   use_value_rescale: True
@@ -39,7 +39,7 @@ logger:
   backend: wandb
   model_name: DQN
   exp_name: Train
-  test_interval: 100_000
+  test_interval: 50_000
 #  test_interval: 20_000
   test_steps: 2_000
   video: True

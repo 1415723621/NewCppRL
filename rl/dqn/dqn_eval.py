@@ -48,6 +48,7 @@ def eval_actor(envs: list[gym.Env],
             obss.append(obs)
         # done = False
         rets = [0.] * episodes
+        weed_ratios = [0.] * episodes
         dones = [False] * episodes
         # Render
         if video:
@@ -61,10 +62,12 @@ def eval_actor(envs: list[gym.Env],
         for t in range(max_step):
             pbar.update(1)
             if (t + 1) % skip_frames == 0:
-                pbar.set_postfix({"reward": np.mean(rets),
-                                  "reward_min": np.min(rets),
-                                  "reward_max": np.max(rets),
-                                  "reward_std": (np.max(rets) - np.min(rets)),
+                rewards_mean = np.mean(rets)
+                rewards_min = np.min(rets)
+                rewards_max = np.max(rets)
+                rewards_std = rewards_max - rewards_min
+                pbar.set_postfix({"reward": f'{rewards_mean:.2f} ± {rewards_std:.2f}, {rewards_min} ~ {rewards_max}',
+                                  "weed_ratio": np.mean(weed_ratios),
                                   'agents_alive': f'{dones.count(False)} / {episodes}'})
             observation = []
             vector = []
@@ -83,6 +86,7 @@ def eval_actor(envs: list[gym.Env],
                     obss.append(obs)
                     rets[idx] += reward
                     dones[idx] |= done
+                    weed_ratios[idx] = obs["weed_ratio"]
                     act_idx += 1
             # Render
             if video and (t + 1) % skip_frames == 0:
@@ -104,13 +108,14 @@ def eval_actor(envs: list[gym.Env],
         "eval/reward_min": rewards_min,
         "eval/reward_max": rewards_max,
         "eval/reward_std": rewards_std,
+        "eval/weed_ratio": np.mean(weed_ratios),
         "eval/eval_time": eval_time,
     }
     for key, value in log_info.items():
-        logger.log_scalar(key, value, step=collected_frames)
+        logger.log_scalar(key, value, step=collected_frames * 2)
     if video:
         video_tensor = recorder.dump()
-        logger.log_video('eval/video', video_tensor, step=collected_frames)
+        logger.log_video('eval/video', video_tensor, step=collected_frames * 2)
     print(f'\tEvaluation finished, cost {eval_time:.2f} seconds. \n'
           f'\tReward = {rewards_mean:.2f} ± {rewards_std:.2f}, {rewards_min} ~ {rewards_max}')
     return rewards_mean, rewards_min, rewards_max
@@ -164,6 +169,7 @@ if __name__ == '__main__':
     model_pool = collections.deque()
     print(model_list)
     print('Start watching.')
+    collected_frames = 0
     while True:
         model_list = sorted(os.listdir(ckpt_path))
         cur_num = len(model_list)
@@ -174,6 +180,7 @@ if __name__ == '__main__':
             while len(model_pool) > 0:
                 print(f'{len(model_pool)} left in Model Pool.')
                 model_id = model_pool.popleft()
+                time.sleep(1)
                 if len(model_id) > 11:
                     continue
                 print(f'Processing model {model_id}.')
@@ -188,6 +195,9 @@ if __name__ == '__main__':
                     pt_path,
                     f'{ckpt_path}/t[{model_name}]_r[{rewards_mean:.2f}={rewards_min:.2f}~{rewards_max:.2f}].pt'
                 )
-                print('Continue watching.')
+            if collected_frames >= train_cfg.collector.total_frames:
+                print('Finished.')
+                break
+            print('Continue watching.')
         last_num = cur_num
         time.sleep(10)

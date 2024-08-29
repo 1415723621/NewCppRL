@@ -96,7 +96,7 @@ def main(cfg: "DictConfig"):  # noqa: F821
             scratch_dir=scratch_dir,
         ),
         batch_size=cfg.buffer.batch_size,
-        transform=MultiStepTransform(n_steps=cfg.loss.nstep, gamma=cfg.loss.gamma),
+        transform=MultiStepTransform(n_steps=cfg.loss.nstep, gamma=cfg.loss.gamma) if cfg.loss.nstep > 1 else None,
     )
 
     # Create the loss module
@@ -123,7 +123,7 @@ def main(cfg: "DictConfig"):  # noqa: F821
     )
 
     # Create the optimizer
-    optimizer = torch.optim.AdamW(loss_module.parameters(), lr=cfg.optim.lr)
+    optimizer = torch.optim.Adam(loss_module.parameters(), lr=cfg.optim.lr)
 
     # Create the logger
     logger = None
@@ -162,7 +162,6 @@ def main(cfg: "DictConfig"):  # noqa: F821
         pbar.update(data.numel())
         data = data.reshape(-1)
         current_frames = data.numel()
-        replay_buffer.extend(data)
         collected_frames += current_frames
         greedy_module.step(current_frames)
 
@@ -172,12 +171,18 @@ def main(cfg: "DictConfig"):  # noqa: F821
             episode_reward_mean = episode_rewards.mean().item()
             episode_length = data["next", "step_count"][data["next", "done"]]
             episode_length_mean = episode_length.sum().item() / len(episode_length)
+            episode_weed_ratio = data["next", "weed_ratio"][data["next", "done"]]
+            episode_weed_ratio_mean = episode_weed_ratio.sum().item() / len(episode_length)
             log_info.update(
                 {
                     "train/episode_reward": episode_reward_mean,
                     "train/episode_length": episode_length_mean,
+                    "train/episode_weed_ratio": episode_weed_ratio_mean,
                 }
             )
+        data.pop('weed_ratio')
+        data.pop(('next', 'weed_ratio'))
+        replay_buffer.extend(data)
 
         if collected_frames < init_random_frames:
             if logger:
