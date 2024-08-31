@@ -532,7 +532,6 @@ class CppEnvironment(gym.Env):
             weed_num = 100
         if map_id is None:
             map_id = self.np_random.integers(0, len(self.map_names) - 1)
-        self.weed_num = weed_num
         # Check Parameters' Range
         assert weed_dist in {'uniform', 'gaussian'}
         assert 0 <= map_id <= len(self.map_names) - 1
@@ -605,8 +604,9 @@ class CppEnvironment(gym.Env):
                 cv2.fillPoly(self.map_frontier, [pts], color=(0.,))
         self.map_frontier_full = self.map_frontier
         self.map_weed = np.zeros((self.dimensions[1], self.dimensions[0]), dtype=np.uint8)
-        # map_frontier_area = self.map_frontier.sum()
-        # weed_num = math.ceil(map_frontier_area * weed_ratio)
+        if isinstance(weed_num, float):
+            weed_num = math.ceil(self.map_frontier.sum() * weed_num)
+        self.weed_num = weed_num
         weed_count = 0
         while weed_count < weed_num:
             if weed_dist == 'uniform':
