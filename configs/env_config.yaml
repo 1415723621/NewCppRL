@@ -8,4 +8,5 @@ env:
     num_obstacles_range: !!python/tuple [0, 5]
     use_sgcnn: True
     use_global_obs: True
+    use_apf: True
     map_dir: envs/maps/1-400

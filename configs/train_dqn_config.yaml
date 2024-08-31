@@ -1,17 +1,17 @@
 device: null
-#pretrained_model: ckpt/train/2024-08-20_04-34-49_Apf/t[01700]_r[316.39].pt
+#pretrained_model: ckpt/dqn/240829_212534_nstep=1_bs=2048_act=32/t[01500]_r[999.22=168.44~1788.53].pt
 pretrained_model: null
-ckpt_name: nstep=1_bs=2048_act=32
+ckpt_name: no_traj
 seed: 42
 
 # collector
 collector:
-  total_frames: 4_000_000
+  total_frames: 2_000_000
   frames_per_batch: 20
   num_envs: 32
   eps_start: 1.0
   eps_end: 0.05
-  annealing_frames: 2_500_000
+  annealing_frames: 1_200_000
   init_random_frames: 20_000
 #  init_random_frames: 0
 

@@ -29,19 +29,13 @@ class CppEnvironment(gym.Env):
     vision_length = 28
     vision_angle = 75
 
-    v_range = NumericalRange(0.0, 3.5)
-    w_range = NumericalRange(-28.6, 28.6)
-    # v: 1 ~ 3.5 => 7
-    # w: 奇数
-    nvec = (7, 31)
+    v_range = NumericalRange(0.0, 3.0)
+    w_range = NumericalRange(-28.0, 28.0)
+    nvec = (6, 15)
 
     obstacle_size_range = (10, 30)
 
-    render_repeat_times = 3
-    # render_farmland_outsides = True
-    render_farmland_outsides = False
-    render_weed = False
-    render_obstacle = False
+    render_repeat_times = 1
 
     def __init__(
             self,
@@ -54,8 +48,6 @@ class CppEnvironment(gym.Env):
             num_obstacles_range: tuple[int, int] = (5, 8),
             use_sgcnn: bool = True,
             use_global_obs: bool = True,
-            use_apf: bool = True,
-            use_box_boundary: bool = True,
             map_dir: str = 'envs/maps/1-400',
     ):
         super().__init__()
@@ -70,8 +62,6 @@ class CppEnvironment(gym.Env):
         self.num_obstacles_range = num_obstacles_range
         self.use_sgcnn = use_sgcnn
         self.use_global_obs = use_global_obs
-        self.use_apf = use_apf
-        self.use_box_boundary = use_box_boundary
         obs_shape = (4, *self.state_downsize,)
         if use_sgcnn:
             obs_shape = (16 + 4 * use_global_obs, *(ds // 8 for ds in self.state_downsize))
@@ -205,17 +195,17 @@ class CppEnvironment(gym.Env):
         frontier_area_tp1 = self.map_frontier.sum(dtype=np.int32)
         frontier_tv_tp1 = total_variation(self.map_frontier.astype(np.int32))
         # Const
-        reward_const = -1.0
+        reward_const = -0.1
         # Turning
         reward_turn_gap = -0.5 * abs(steer_tp1 - self.steer_t) / self.w_range.max
         reward_turn_direction = -0.30 * (0. if (steer_tp1 * self.steer_t >= 0
                                                 or (steer_tp1 == 0 and self.steer_t == 0))
                                          else 1.)
         reward_turn_self = 0.25 * (0.4 - abs(steer_tp1 / self.w_range.max) ** 0.5)
-        reward_turn = 0.02 * (reward_turn_gap
-                              + reward_turn_direction
-                              + reward_turn_self
-                              )
+        reward_turn = 0.0 * (reward_turn_gap
+                             + reward_turn_direction
+                             + reward_turn_self
+                             )
         # Frontier
         reward_frontier_coverage = (self.frontier_area_t - frontier_area_tp1) / (
                 2 * MowerAgent.width * self.v_range.max)
@@ -225,23 +215,10 @@ class CppEnvironment(gym.Env):
                                    )
         # Weed
         reward_weed = 20.0 * (self.weed_num_t - weed_num_tp1)
-        # Apf
-        reward_apf = 0.
-        if self.use_apf:
-            reward_apf_frontier = 0.0 * (self.obs_apf[0][y_tp1, x_tp1] - self.obs_apf[0][y_t, x_t])
-            reward_apf_obstacle = -0.5 * (self.obs_apf[2][y_tp1, x_tp1] - self.obs_apf[2][y_t, x_t])
-            reward_apf_weed = 5.0 * (self.obs_apf[3][y_tp1, x_tp1] - self.obs_apf[3][y_t, x_t])
-            if reward_apf_obstacle >= 0.:
-                reward_apf_obstacle = 0.
-            reward_apf = 1.0 * (reward_apf_frontier
-                                + reward_apf_obstacle
-                                + reward_apf_weed
-                                )
         # Summary
         reward = (reward_const
                   + reward_frontier
                   + reward_weed
-                  + reward_apf
                   + reward_turn
                   )
         reward = np.where(
@@ -249,6 +226,8 @@ class CppEnvironment(gym.Env):
             0.,
             reward,
         )
+        # if reward > 5:
+        #     pass
         self.weed_num_t = weed_num_tp1
         self.frontier_area_t = frontier_area_tp1
         self.frontier_tv_t = frontier_tv_tp1
@@ -280,40 +259,12 @@ class CppEnvironment(gym.Env):
         return np.where(map_apf < eps, 0., map_apf)
 
     def observation(self) -> dict[str, np.ndarray | float]:
-        apf_frontier = np.logical_and(total_variation_mat(self.map_frontier), self.map_mist)
-        apf_obstacle = np.logical_and(total_variation_mat(self.map_obstacle), self.map_mist)
-        apf_weed = np.logical_and(self.map_weed, np.logical_not(self.map_frontier))
-        if self.use_apf:
-            apf_frontier, is_empty = cpu_apf_bool(apf_frontier)
-            if not is_empty:
-                apf_frontier = self.get_discounted_apf(apf_frontier, 30)
-            apf_obstacle, is_empty = cpu_apf_bool(
-                np.logical_and(np.pad(apf_obstacle,
-                                      pad_width=[[1, 1], [1, 1]],
-                                      mode='constant',
-                                      constant_values=(1, 1)),
-                               np.pad(self.map_mist,
-                                      pad_width=[[1, 1], [1, 1]],
-                                      mode='constant',
-                                      constant_values=(1, 1))))
-            apf_obstacle = apf_obstacle[1:-1, 1:-1]
-            if not is_empty:
-                apf_obstacle = self.get_discounted_apf(apf_obstacle, 10)
-            apf_weed, is_empty = cpu_apf_bool(apf_weed)
-            if not is_empty:
-                apf_weed = self.get_discounted_apf(apf_weed, 40, 1e-2)
-        apf_obstacle = np.maximum(apf_obstacle, np.logical_and(self.map_obstacle, self.map_mist))
-        # apf_trajectory, is_empty = cpu_apf_bool(self.map_trajectory)
-        # if not is_empty:
-        #     apf_trajectory = self.get_discounted_apf(apf_trajectory, 4)
         obs = np.stack((
-            apf_frontier,
+            np.logical_and(self.map_frontier, self.map_mist),
             np.logical_not(self.map_mist),
-            apf_obstacle,
-            apf_weed,
-            # apf_trajectory,
+            self.map_obstacle,
+            self.map_weed,
         ), axis=-1)
-        self.obs_apf = obs.transpose(2, 0, 1)
         diag_r = self.state_size[0] / 2 * np.sqrt(2)
         diag_r_int = np.ceil(diag_r).astype(np.int32)
         obs = cv2.copyMakeBorder(obs, diag_r_int, diag_r_int, diag_r_int, diag_r_int,
@@ -333,10 +284,18 @@ class CppEnvironment(gym.Env):
                       delta_leftmost:delta_rightmost,
                       delta_leftmost:delta_rightmost,
                       :]
-        if self.state_downsize != self.state_size:
-            obs_rotated_resize = cv2.resize(obs_rotated, self.state_downsize)
-        else:
-            obs_rotated_resize = obs_rotated
+
+        # exposed_obstacle = (obs_rotated[:, :, 1] != 0).astype(np.uint8)
+        # apf_obstacle, is_empty = cpu_apf_bool(total_variation_mat(exposed_obstacle))
+        # if not is_empty:
+        #     apf_obstacle = self.get_discounted_apf(apf_obstacle, 6)
+        #     apf_obstacle = np.maximum(apf_obstacle, exposed_obstacle)
+        # obs_rotated[:, :, 1] = apf_obstacle
+        # if self.state_downsize != self.state_size:
+        #     obs_rotated_resize = cv2.resize(obs_rotated, self.state_downsize)
+        # else:
+        #     obs_rotated_resize = obs_rotated
+        obs_rotated_resize = cv2.resize(obs_rotated, self.state_downsize)
         obs = obs_rotated_resize.transpose(2, 0, 1)
         if self.use_sgcnn:
             obs = self.get_sgcnn_obs(obs)
@@ -368,7 +327,7 @@ class CppEnvironment(gym.Env):
                 diag_r = self.dimensions[0] / 2 * np.sqrt(2)
                 diag_r_int = np.ceil(diag_r).astype(np.int32)
                 obs_global = cv2.copyMakeBorder(obs_global, diag_r_int, diag_r_int, diag_r_int, diag_r_int,
-                                                cv2.BORDER_CONSTANT, value=np.array((0., 0., 1., 0.)), )
+                                                cv2.BORDER_CONSTANT, value=np.array((0., 1., 0., 0.)), )
                 leftmost = round(self.agent.y)
                 rightmost = round(self.agent.y + 2 * diag_r_int)
                 upmost = round(self.agent.x)
@@ -394,23 +353,9 @@ class CppEnvironment(gym.Env):
 
     def render_map(self) -> np.ndarray:
         rendered_map = np.ones((self.dimensions[1], self.dimensions[0], 3), dtype=np.uint8) * 255.
-        if self.render_farmland_outsides:
-            frontier_apf_out = np.where(np.logical_not(self.map_frontier_full), self.obs_apf[0], 0.)
-            rendered_map = np.where(
-                np.expand_dims(frontier_apf_out, axis=-1),
-                (
-                        np.expand_dims(frontier_apf_out, axis=-1) * np.array((255, 38, 255))
-                        + np.expand_dims(1 - frontier_apf_out, axis=-1) * rendered_map
-                ).astype(np.uint8),
-                rendered_map,
-            )
-        frontier_apf_in = np.where(self.map_frontier_full, self.obs_apf[0], 0.)
         rendered_map = np.where(
-            np.expand_dims(frontier_apf_in, axis=-1),
-            (
-                    np.expand_dims(frontier_apf_in, axis=-1) * np.array((255., 215., 0.))
-                    + np.expand_dims(1 - frontier_apf_in, axis=-1) * rendered_map
-            ).astype(np.uint8),
+            np.expand_dims(self.map_frontier_full, axis=-1),
+            np.array((255, 215, 0)),
             rendered_map,
         )
         tv_frontier = total_variation_mat(self.map_frontier)
@@ -440,15 +385,6 @@ class CppEnvironment(gym.Env):
             np.array((0, 255, 0)),
             rendered_map,
         )
-        if self.render_weed:
-            rendered_map = np.where(
-                np.expand_dims(self.obs_apf[3] != 0, axis=-1),
-                (
-                        np.expand_dims(self.obs_apf[3], axis=-1) * np.array((0, 255, 0))
-                        + np.expand_dims(1 - self.obs_apf[3], axis=-1) * rendered_map
-                ).astype(np.uint8),
-                rendered_map,
-            )
         rendered_map = np.where(
             np.expand_dims(self.map_trajectory, axis=-1),
             np.array((0, 128, 255)),
@@ -456,24 +392,9 @@ class CppEnvironment(gym.Env):
         )
         rendered_map = np.where(
             np.expand_dims(self.map_obstacle, axis=-1),
-            np.array((128, 128, 128)),
+            np.array((96, 96, 96)),
             rendered_map,
         )
-        tv_obstacle = total_variation_mat(self.map_obstacle)
-        rendered_map = np.where(
-            np.expand_dims(tv_obstacle, axis=-1),
-            np.array((48, 48, 48)),
-            rendered_map,
-        )
-        if self.render_obstacle:
-            rendered_map = np.where(
-                np.expand_dims(np.logical_and(self.obs_apf[2], np.logical_not(self.map_obstacle)), axis=-1),
-                (
-                        np.expand_dims(self.obs_apf[2], axis=-1) * np.array((48., 48., 48.))
-                        + np.expand_dims(1 - self.obs_apf[2], axis=-1) * rendered_map
-                ).astype(np.uint8),
-                rendered_map,
-            )
         # cv2.polylines(rendered_map, self.min_area_rect, True, (0, 255, 0), 1)
         cv2.fillPoly(rendered_map, [self.agent.convex_hull.round().astype(np.int32)], color=(255, 0, 0))
         rendered_map = np.where(
@@ -506,6 +427,8 @@ class CppEnvironment(gym.Env):
                       delta_leftmost:delta_rightmost,
                       :]
         rendered_map[:self.state_size[0], :self.state_size[0]] = obs_rotated
+        # rendered_map = rendered_map.repeat(self.render_repeat_times, axis=0).repeat(self.render_repeat_times, axis=1)
+        # return rendered_map
         return obs_rotated
 
     def reset(
@@ -537,9 +460,17 @@ class CppEnvironment(gym.Env):
         assert weed_dist in {'uniform', 'gaussian'}
         assert 0 <= map_id <= len(self.map_names) - 1
         self.map_id = map_id
+        self.map_mist = np.zeros((self.dimensions[1], self.dimensions[0]), dtype=np.uint8)
         self.map_frontier: np.ndarray = (
                 cv2.imread(str(self.map_dir / self.map_names[self.map_id])).sum(axis=-1) > 0).astype(np.uint8)
         contours, _ = cv2.findContours(self.map_frontier, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        # x, y, w, h = cv2.boundingRect(contours[0])
+        # box = np.array([
+        #     [x, y],
+        #     [x + w, y],
+        #     [x + w, y + h],
+        #     [x, y + h]
+        # ])
         contours = sorted(contours, key=lambda a: cv2.contourArea(a), reverse=True)
         rect = cv2.minAreaRect(contours[0])
         box = cv2.boxPoints(rect)
@@ -553,6 +484,7 @@ class CppEnvironment(gym.Env):
         theta_vector = box[pos_index + 1, 0] - box[pos_index, 0]
         theta_vector = theta_vector / math.hypot(*theta_vector)
         theta = math.degrees(math.atan2(theta_vector[1], theta_vector[0]))
+        # cv2.polylines(image, [box], True, (0, 255, 0), 10)
 
         # Initialize player
         self.agent.reset(
@@ -561,33 +493,14 @@ class CppEnvironment(gym.Env):
         )
         # Initialize maps
         self.map_trajectory = np.zeros((self.dimensions[1], self.dimensions[0]), dtype=np.uint8)
-        self.map_mist = np.zeros((self.dimensions[1], self.dimensions[0]), dtype=np.uint8)
         # Randomize obstacles
-        if self.use_box_boundary:
-            self.map_obstacle = np.ones((self.dimensions[1], self.dimensions[0]), dtype=np.uint8)
-            kernel = np.ones((4, 4), np.uint8)
-            map_frontier_dilate = np.zeros_like(self.map_frontier)
-            cv2.dilate(self.map_frontier, kernel, dst=map_frontier_dilate, iterations=25)
-            contours_expanded, _ = cv2.findContours(map_frontier_dilate, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-            contours_expanded = sorted(contours_expanded, key=lambda a: cv2.contourArea(a), reverse=True)
-            rect = cv2.minAreaRect(contours_expanded[0])
-            box = cv2.boxPoints(rect)
-            start_idx = box.sum(axis=1).argmin()
-            box = np.roll(box, 4 - start_idx, 0)
-            # (4, 1, 2)
-            box = box.reshape((-1, 1, 2)).astype(np.int32)
-            cv2.fillPoly(self.map_obstacle, [box], color=(0,))
-            # self.map_mist = np.where(self.map_obstacle, 1., 0.)
-            # self.map_mist = 1 - cv2.fillPoly(self.map_mist, [box], color=(1,))
-        else:
-            self.map_obstacle = np.zeros((self.dimensions[1], self.dimensions[0]), dtype=np.uint8)
+        self.map_obstacle = np.zeros((self.dimensions[1], self.dimensions[0]), dtype=np.uint8)
         num_obstacles = self.np_random.integers(*self.num_obstacles_range) if self.num_obstacles_range[1] > 0 else 0
         current_obstacle_num = 0
+        # self.obstacles = []
         while current_obstacle_num < num_obstacles:
             o_x = self.np_random.uniform(0 + 100, self.dimensions[0] - 100)
             o_y = self.np_random.uniform(0 + 100, self.dimensions[1] - 100)
-            if self.map_obstacle[int(o_y), int(o_x)]:
-                continue
             o_len = self.np_random.uniform(*self.obstacle_size_range)
             o_wid = self.np_random.uniform(*self.obstacle_size_range)
             angle = self.np_random.uniform(0., 360.)
@@ -603,10 +516,10 @@ class CppEnvironment(gym.Env):
                     dtype=np.int32
                 ).reshape((-1, 1, 2))
                 cv2.fillPoly(self.map_frontier, [pts], color=(0.,))
+                # cv2.fillPoly(self.map_obstacle, [pts], color=(1.))
+                # self.obstacles.append((o_x, o_y, o_len, o_wid))
         self.map_frontier_full = self.map_frontier
         self.map_weed = np.zeros((self.dimensions[1], self.dimensions[0]), dtype=np.uint8)
-        # map_frontier_area = self.map_frontier.sum()
-        # weed_num = math.ceil(map_frontier_area * weed_ratio)
         weed_count = 0
         while weed_count < weed_num:
             if weed_dist == 'uniform':
@@ -643,7 +556,7 @@ class CppEnvironment(gym.Env):
                     endAngle=self.vision_angle / 2,
                     color=(1.,),
                     thickness=-1, )
-        if not np.logical_and(self.map_frontier, self.map_mist).any():
+        if np.logical_and(self.map_frontier, self.map_mist).max() == 0:
             dist2player = cv2.pointPolygonTest(contours[0], self.agent.position, True)
             cv2.circle(img=self.map_mist,
                        center=self.agent.position_discrete,
