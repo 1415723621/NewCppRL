@@ -33,11 +33,11 @@ class CppEnvironment(gym.Env):
     w_range = NumericalRange(-28.6, 28.6)
     # v: 1 ~ 3.5 => 7
     # w: 奇数
-    nvec = (7, 31)
+    nvec = (7, 21)
 
-    obstacle_size_range = (10, 30)
+    obstacle_size_range = (10, 25)
 
-    render_repeat_times = 3
+    render_repeat_times = 1
     # render_farmland_outsides = True
     render_farmland_outsides = False
     render_weed = False
@@ -205,14 +205,14 @@ class CppEnvironment(gym.Env):
         frontier_area_tp1 = self.map_frontier.sum(dtype=np.int32)
         frontier_tv_tp1 = total_variation(self.map_frontier.astype(np.int32))
         # Const
-        reward_const = -1.0
+        reward_const = -0.1
         # Turning
         reward_turn_gap = -0.5 * abs(steer_tp1 - self.steer_t) / self.w_range.max
         reward_turn_direction = -0.30 * (0. if (steer_tp1 * self.steer_t >= 0
                                                 or (steer_tp1 == 0 and self.steer_t == 0))
                                          else 1.)
         reward_turn_self = 0.25 * (0.4 - abs(steer_tp1 / self.w_range.max) ** 0.5)
-        reward_turn = 0.02 * (reward_turn_gap
+        reward_turn = 0.0 * (reward_turn_gap
                               + reward_turn_direction
                               + reward_turn_self
                               )
@@ -564,13 +564,20 @@ class CppEnvironment(gym.Env):
         # Randomize obstacles
         if self.use_box_boundary:
             self.map_obstacle = np.ones((self.dimensions[1], self.dimensions[0]), dtype=np.uint8)
-            kernel = np.ones((4, 4), np.uint8)
-            map_frontier_dilate = np.zeros_like(self.map_frontier)
-            cv2.dilate(self.map_frontier, kernel, dst=map_frontier_dilate, iterations=25)
-            contours_expanded, _ = cv2.findContours(map_frontier_dilate, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-            contours_expanded = sorted(contours_expanded, key=lambda a: cv2.contourArea(a), reverse=True)
-            rect = cv2.minAreaRect(contours_expanded[0])
-            box = cv2.boxPoints(rect)
+            r_center = 0.5 * (box[0, 0] + box[2, 0])
+            vecs = [box[0, 0] - box[1, 0], box[1, 0] - box[2, 0]]
+            wd_i = 0
+            if abs(vecs[1][1]) < abs(vecs[1][0]):
+                wd_i = 0
+            ht_i = (wd_i + 1) % 2
+            angle = math.atan(vecs[wd_i][1] / vecs[wd_i][0]) * 180.0 / math.pi
+            width = math.hypot(*vecs[wd_i])
+            height = math.hypot(*vecs[ht_i])
+            width = max(width * 1.2, width + 60)
+            height = max(height * 1.2, height + 60)
+            rect_expanded = cv2.RotatedRect(r_center, (width, height), angle)
+            # sz = rect_expanded.size
+            box = rect_expanded.points()
             start_idx = box.sum(axis=1).argmin()
             box = np.roll(box, 4 - start_idx, 0)
             # (4, 1, 2)

@@ -29,7 +29,7 @@ optim:
 loss:
   gamma: 0.99
   nstep: 1
-  hard_update_freq: 2500
+  hard_update_freq: 2000
   utd_ratio: 1
   loss_type: l2
   use_value_rescale: True
