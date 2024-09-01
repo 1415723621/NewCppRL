@@ -16,6 +16,8 @@ from gymnasium.wrappers import HumanRendering
 
 from envs.utils import get_map_pasture_larger, MowerAgent, NumericalRange, total_variation_mat, total_variation
 
+class local_github_test:
+    print("successful")
 
 class CppEnvironment(gym.Env):
     metadata = {
