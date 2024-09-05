@@ -26,9 +26,9 @@ def value_rescale_inv(x: torch.Tensor, eps: float = 1e-2) -> torch.Tensor:
 class CustomDQNLoss(DQNLoss):
     def make_value_estimator(self, value_type: ValueEstimators = None, value_rescale_eps: float = 1e-2, **hyperparams):
         if value_type is None:
-            value_type = self.default_value_estimator
+            value_type = self.default_value_estimator # 默认的是TD0
         self.value_type = value_type
-        hp = dict(default_value_kwargs(value_type))
+        hp = dict(default_value_kwargs(value_type)) # 设置默认的gama和differentiable参数
         if hasattr(self, "gamma"):
             hp["gamma"] = self.gamma
         hp.update(hyperparams)
@@ -100,6 +100,9 @@ class CustomTD0Estimator(TD0Estimator):
             next_value: torch.Tensor | None = None,
             **kwargs,
     ):
+        """
+        对值进行放缩后再进行预测
+        """
         reward = tensordict.get(("next", self.tensor_keys.reward))
         device = reward.device
         gamma = self.gamma.to(device)

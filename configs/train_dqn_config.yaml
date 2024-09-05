@@ -7,30 +7,30 @@ seed: 42
 # collector
 collector:
   total_frames: 2_000_000
-  frames_per_batch: 20
+  frames_per_batch: 20 # 每次从收集器收集的帧数
   num_envs: 32
   eps_start: 1.0
   eps_end: 0.05
-  annealing_frames: 1_200_000
+  annealing_frames: 1_200_000 # 退火的步数
   init_random_frames: 20_000
 #  init_random_frames: 0
 
 # buffer
 buffer:
-  buffer_size: 800_000
-  batch_size: 2048
+  buffer_size: 800_000 # 存放缓存区的大小
+  batch_size: 2048 # 2048这个值就很好，不要动了
 
 # Optim
 optim:
-  lr: 3.0e-4
+  lr: 4.0e-4
   max_grad_norm: null
 
 # loss
 loss:
   gamma: 0.99
   nstep: 1
-  hard_update_freq: 2000
-  utd_ratio: 1
+  hard_update_freq: 3000 # 更新频率快，过估计现象少很多
+  utd_ratio: 1 # 每次采集对模型的更新次数
   loss_type: l2
   use_value_rescale: True
 
@@ -41,5 +41,5 @@ logger:
   exp_name: Train
   test_interval: 50_000
 #  test_interval: 20_000
-  test_steps: 2_000
+  test_steps: 2_000 # 这个参数似乎没有用
   video: True

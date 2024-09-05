@@ -14,8 +14,8 @@ from torchrl_utils.utils_env import make_env
 def make_dqn_modules(proof_environment):
     # Define input shape
     input_shape = proof_environment.observation_spec["observation"].shape
-    env_specs = proof_environment.specs
-    num_outputs = env_specs["input_spec", "full_action_spec", "action"].space.n
+    env_specs = proof_environment.specs # 用于提取环境的各种属性和空间规格
+    num_outputs = env_specs["input_spec", "full_action_spec", "action"].space.n #表示多重嵌套顺次索引
     action_spec = env_specs["input_spec", "full_action_spec", "action"]
 
     # layers = [_ConvNetBlock(num_in, num_ch) for num_in, num_ch in ((input_shape[0], 64), (64, 128))]
@@ -51,13 +51,16 @@ def make_dqn_modules(proof_environment):
 
     qvalue_module = QValueActor(
         module=dqn,
-        spec=CompositeSpec(action=action_spec),
+        spec=CompositeSpec(action=action_spec), # 包括动作空间的规格说明
         in_keys=["observation", "vector"],
     )
     return qvalue_module
 
 
 def make_dqn_model():
+    """
+    生成网络预测模型
+    """
     proof_environment = make_env(device="cpu")
     qvalue_module = make_dqn_modules(proof_environment)
     del proof_environment

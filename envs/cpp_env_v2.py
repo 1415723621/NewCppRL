@@ -16,9 +16,6 @@ from gymnasium.wrappers import HumanRendering
 
 from envs.utils import get_map_pasture_larger, MowerAgent, NumericalRange, total_variation_mat, total_variation
 
-class local_github_test:
-    print("successful")
-
 class CppEnvironment(gym.Env):
     metadata = {
         "render_modes": [
@@ -39,25 +36,25 @@ class CppEnvironment(gym.Env):
 
     obstacle_size_range = (10, 25)
 
-    render_repeat_times = 1
+    render_repeat_times = 5 # 渲染时放缩比例
     # render_farmland_outsides = True
-    render_farmland_outsides = False
-    render_weed = False
-    render_obstacle = False
+    render_farmland_outsides = False # 是否渲染农田外的扩散场
+    render_weed =  False # 是否渲染操的扩散场
+    render_obstacle = False #  是否渲染障碍物的扩散场
 
     def __init__(
             self,
             # dimensions: tuple[int, int] = (400, 400),
             action_type: str = 'discrete',
             render_mode: str = None,
-            state_pixels: bool = False,
+            state_pixels: bool = False, # 是否渲染第一视角
             state_size: tuple[int, int] = (128, 128),
             state_downsize: tuple[int, int] = (128, 128),
             num_obstacles_range: tuple[int, int] = (5, 8),
             use_sgcnn: bool = True,
             use_global_obs: bool = True,
             use_apf: bool = True,
-            use_box_boundary: bool = True,
+            use_box_boundary: bool = True, # 在场景外是否绘制障碍物包裹
             map_dir: str = 'envs/maps/1-400',
     ):
         super().__init__()
@@ -66,7 +63,7 @@ class CppEnvironment(gym.Env):
         self.map_names = sorted(os.listdir(self.map_dir))
         # Environmental parameters
         self.action_type = action_type
-        self.dimensions = cv2.imread(str(self.map_dir / self.map_names[0])).shape[:-1]
+        self.dimensions = cv2.imread(str(self.map_dir / self.map_names[0])).shape[:-1] # 先列数再行数
         self.state_size = state_size
         self.state_downsize = state_downsize
         self.num_obstacles_range = num_obstacles_range
@@ -74,7 +71,7 @@ class CppEnvironment(gym.Env):
         self.use_global_obs = use_global_obs
         self.use_apf = use_apf
         self.use_box_boundary = use_box_boundary
-        obs_shape = (4, *self.state_downsize,)
+        obs_shape = (4, *self.state_downsize,) # TODO: 要改成5如果加上轨迹之后
         if use_sgcnn:
             obs_shape = (16 + 4 * use_global_obs, *(ds // 8 for ds in self.state_downsize))
 
@@ -124,24 +121,32 @@ class CppEnvironment(gym.Env):
         self.clock = None
         self.isopen = True
 
+    # state对角尺寸
     @property
     def state_size_diag(self) -> tuple[int, int]:
         return (np.ceil(np.sqrt(2) * self.state_size[0]).astype(np.int32),
                 np.ceil(np.sqrt(2) * self.state_size[1]).astype(np.int32))
 
+    # 图片对角尺寸
     @property
     def dimensions_diag(self) -> tuple[int, int]:
         return (np.ceil(np.sqrt(2) * self.dimensions[0]).astype(np.int32),
                 np.ceil(np.sqrt(2) * self.dimensions[1]).astype(np.int32))
 
+    def set_action_type(self, action_type: str = "discrete"):
+        self.action_type = action_type
+
+    def set_obstacle_range(self, num_obstacles_range : tuple[int, int] = (5, 8)):
+        self.num_obstacles_range = num_obstacles_range
+
     def get_action(self, action: Union[int, Tuple[int, int], Tuple[float, float]]) -> tuple[float, float]:
         if self.action_type == 'discrete':
-            acc = action // self.nvec[1]
+            acc = action // self.nvec[1] # //之后在0~6范围
             linear_velocity = (self.v_range.min
-                               + (acc + 1) / (self.nvec[0]) * self.v_range.mode)
-            steer = action % self.nvec[1]
+                               + (acc + 1) / (self.nvec[0]) * self.v_range.mode) # 通过+1将速度最低档设置为0.5,+后面是做线性的放缩
+            steer = action % self.nvec[1] # %后在0~20范围
             angular_velocity = (self.w_range.min
-                                + steer / (self.nvec[1] - 1) * self.w_range.mode)
+                                + steer / (self.nvec[1] - 1) * self.w_range.mode)# -1去掉中位数，保证线性放缩合理
         elif self.action_type == 'continuous':
             linear_velocity, angular_velocity = action
         elif self.action_type == 'multi_discrete':
@@ -189,15 +194,18 @@ class CppEnvironment(gym.Env):
         cv2.line(self.map_trajectory, pt1=(x_t, y_t), pt2=(x_tp1, y_tp1), color=(1.,))
         reward = self.get_reward(steer, x_t, y_t, x_tp1, y_tp1)
         if crashed:
-            reward -= 200.
+            reward -= 399.
         self.t += 1
-        time_out = self.t == 2000
-        finish = self.weed_num_t == 0 and self.frontier_area_t == 0
+        time_out = self.t == 3000
+        # finish = self.weed_num_t == 0 and self.frontier_area_t == 0
+        finish = self.weed_num_t == 0 # TODO: 这样楚瑜就没办法测试了，因此记得解决，看看能不能解决吧
+        if finish:
+            reward += 500
         done = crashed or finish
         obs = self.observation()
         return obs, reward, done, time_out, {}
 
-    def get_reward(self,
+    def get_reward(self, # 这个y_tp1不是很懂啥意思
                    steer_tp1: float,
                    x_t: int,
                    y_t: int,
@@ -231,7 +239,7 @@ class CppEnvironment(gym.Env):
         reward_apf = 0.
         if self.use_apf:
             reward_apf_frontier = 0.0 * (self.obs_apf[0][y_tp1, x_tp1] - self.obs_apf[0][y_t, x_t])
-            reward_apf_obstacle = -0.5 * (self.obs_apf[2][y_tp1, x_tp1] - self.obs_apf[2][y_t, x_t])
+            reward_apf_obstacle = -0.3 * (self.obs_apf[2][y_tp1, x_tp1] - self.obs_apf[2][y_t, x_t])
             reward_apf_weed = 5.0 * (self.obs_apf[3][y_tp1, x_tp1] - self.obs_apf[3][y_t, x_t])
             if reward_apf_obstacle >= 0.:
                 reward_apf_obstacle = 0.
@@ -346,7 +354,7 @@ class CppEnvironment(gym.Env):
                 'vector': self.agent.last_steer / self.w_range.max,
                 'weed_ratio': 1 - self.weed_num_t / self.weed_num}
 
-    def get_sgcnn_obs(self, obs: np.ndarray):
+    def get_sgcnn_obs(self, obs: np.ndarray): # 在obs的基础上做多尺度图
         sgcnn_size = 16
         obs_ = obs
         obs_list = []
@@ -397,7 +405,7 @@ class CppEnvironment(gym.Env):
     def render_map(self) -> np.ndarray:
         rendered_map = np.ones((self.dimensions[1], self.dimensions[0], 3), dtype=np.uint8) * 255.
         if self.render_farmland_outsides:
-            frontier_apf_out = np.where(np.logical_not(self.map_frontier_full), self.obs_apf[0], 0.)
+            frontier_apf_out = np.where(np.logical_not(self.map_frontier_full), self.obs_apf[0], 0.) # frontier外部有态势场的地方
             rendered_map = np.where(
                 np.expand_dims(frontier_apf_out, axis=-1),
                 (
@@ -485,7 +493,7 @@ class CppEnvironment(gym.Env):
         )
         return rendered_map
 
-    def render_self(self) -> np.ndarray:
+    def render_self(self) -> np.ndarray: # 先获得整体渲染场景，然后从整体渲染中截取出当前视野
         # obs_rotated_resize = cv2.resize(self.obs_ego_centric, self.state_size_downsize)
         rendered_map = self.render_map()
         diag_r = self.state_size[0] / 2 * np.sqrt(2)
@@ -538,7 +546,7 @@ class CppEnvironment(gym.Env):
         assert weed_dist in {'uniform', 'gaussian'}
         assert 0 <= map_id <= len(self.map_names) - 1
         self.map_id = map_id
-        self.map_frontier: np.ndarray = (
+        self.map_frontier: np.ndarray = ( # map_frontier是农田，这里在计算boudingbox TODO: 有时间细致理解一下这里的代码
                 cv2.imread(str(self.map_dir / self.map_names[self.map_id])).sum(axis=-1) > 0).astype(np.uint8)
         contours, _ = cv2.findContours(self.map_frontier, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         contours = sorted(contours, key=lambda a: cv2.contourArea(a), reverse=True)
@@ -564,7 +572,7 @@ class CppEnvironment(gym.Env):
         self.map_trajectory = np.zeros((self.dimensions[1], self.dimensions[0]), dtype=np.uint8)
         self.map_mist = np.zeros((self.dimensions[1], self.dimensions[0]), dtype=np.uint8)
         # Randomize obstacles
-        if self.use_box_boundary:
+        if self.use_box_boundary: # 外部画障碍物
             self.map_obstacle = np.ones((self.dimensions[1], self.dimensions[0]), dtype=np.uint8)
             r_center = 0.5 * (box[0, 0] + box[2, 0])
             vecs = [box[0, 0] - box[1, 0], box[1, 0] - box[2, 0]]
@@ -575,7 +583,7 @@ class CppEnvironment(gym.Env):
             angle = math.atan(vecs[wd_i][1] / vecs[wd_i][0]) * 180.0 / math.pi
             width = math.hypot(*vecs[wd_i])
             height = math.hypot(*vecs[ht_i])
-            width = max(width * 1.2, width + 60)
+            width = max(width * 1.2, width + 60) # 障碍物空间放大了1.2倍
             height = max(height * 1.2, height + 60)
             rect_expanded = cv2.RotatedRect(r_center, (width, height), angle)
             # sz = rect_expanded.size
@@ -591,7 +599,7 @@ class CppEnvironment(gym.Env):
             self.map_obstacle = np.zeros((self.dimensions[1], self.dimensions[0]), dtype=np.uint8)
         num_obstacles = self.np_random.integers(*self.num_obstacles_range) if self.num_obstacles_range[1] > 0 else 0
         current_obstacle_num = 0
-        while current_obstacle_num < num_obstacles:
+        while current_obstacle_num < num_obstacles: # 生成障碍物
             o_x = self.np_random.uniform(0 + 100, self.dimensions[0] - 100)
             o_y = self.np_random.uniform(0 + 100, self.dimensions[1] - 100)
             if self.map_obstacle[int(o_y), int(o_x)]:
@@ -607,17 +615,17 @@ class CppEnvironment(gym.Env):
                 current_obstacle_num += 1
                 cv2.fillPoly(self.map_obstacle, [pts], color=(1.,))
                 pts = np.array(
-                    cv2.RotatedRect(center=(o_x, o_y), size=(o_len + 15, o_wid + 15), angle=angle).points(),
+                    cv2.RotatedRect(center=(o_x, o_y), size=(o_len + 15, o_wid + 15), angle=angle).points(), # 扩了15码
                     dtype=np.int32
                 ).reshape((-1, 1, 2))
                 cv2.fillPoly(self.map_frontier, [pts], color=(0.,))
-        self.map_frontier_full = self.map_frontier
+        self.map_frontier_full = self.map_frontier # TODO: map_frontier_full可用于获得地图的覆盖率
         self.map_weed = np.zeros((self.dimensions[1], self.dimensions[0]), dtype=np.uint8)
-        if isinstance(weed_num, float):
+        if isinstance(weed_num, float): # 可以给比例
             weed_num = math.ceil(self.map_frontier.sum() * weed_num)
         self.weed_num = weed_num
         weed_count = 0
-        while weed_count < weed_num:
+        while weed_count < weed_num: # TODO，这个有时间的话就改成小簇然后发芽的方法
             if weed_dist == 'uniform':
                 weed_x = self.np_random.integers(low=0, high=self.dimensions[0] - 1)
                 weed_y = self.np_random.integers(low=0, high=self.dimensions[1] - 1)
@@ -635,7 +643,8 @@ class CppEnvironment(gym.Env):
                     if self.map_frontier[weed_y[i], weed_x[i]] and not self.map_weed[weed_y[i], weed_x[i]]:
                         self.map_weed[weed_y[i], weed_x[i]] = 1
                         weed_count += 1
-        cv2.fillPoly(self.map_weed, [self.agent.convex_hull.round().astype(np.int32)], color=(0.,))
+        cv2.fillPoly(self.map_weed, [self.agent.convex_hull.round().astype(np.int32)], color=(0.,)) # 小车位置boudingbox
+        # map_frontier和map_mist都要进行一次step的计算
         cv2.ellipse(img=self.map_frontier,
                     center=self.agent.position_discrete,
                     axes=(self.vision_length, self.vision_length),
@@ -646,13 +655,13 @@ class CppEnvironment(gym.Env):
                     thickness=-1, )
         cv2.ellipse(img=self.map_mist,
                     center=self.agent.position_discrete,
-                    axes=(self.vision_length + 1, self.vision_length + 1),
+                    axes=(self.vision_length + 1, self.vision_length + 1), # vision_lenth+1就是迷雾探开范围
                     angle=self.agent.direction,
                     startAngle=-self.vision_angle / 2,
                     endAngle=self.vision_angle / 2,
                     color=(1.,),
                     thickness=-1, )
-        if not np.logical_and(self.map_frontier, self.map_mist).any():
+        if not np.logical_and(self.map_frontier, self.map_mist).any(): # 最开始看不见，开个口看见
             dist2player = cv2.pointPolygonTest(contours[0], self.agent.position, True)
             cv2.circle(img=self.map_mist,
                        center=self.agent.position_discrete,
@@ -685,7 +694,6 @@ class CppEnvironment(gym.Env):
             raise DependencyNotInstalled(
                 "pygame is not installed, run `pip install gymnasium[classic-control]`"
             ) from e
-
         if self.screen is None:
             pygame.init()
             self.screen = pygame.Surface(
@@ -704,12 +712,13 @@ class CppEnvironment(gym.Env):
             img = self.render_self()
         else:
             img = self.render_map()
-        img = img.repeat(self.render_repeat_times, axis=0).repeat(self.render_repeat_times, axis=1)
+        # 尝试用cv2和scipy.ndimage插值替换repeat，但是运行速度降低较多，或者插值后图像模糊有锯齿，故保留repeat操作
+        img = img.repeat(self.render_repeat_times, axis=0).repeat(self.render_repeat_times, axis=1) # 按比例缩放render的img
         surf = pygame.surfarray.make_surface(img)
         self.screen.blit(surf, (0, 0))
         return np.transpose(
             np.array(pygame.surfarray.pixels3d(self.screen)), axes=(1, 0, 2)
-        )
+        ) # pygame数据 (width, height, channels) -> numpy数据 (height, width, channels)
 
     def close(self):
         if self.screen is not None:
@@ -727,13 +736,18 @@ if __name__ == "__main__":
         render_mode='rgb_array' if if_render else None,
         # state_pixels=True,
         state_pixels=False,
+        # num_obstacles_range = [0,0]
     )
-    env: CppEnvironment = HumanRendering(env)
+    env: CppEnvironment = HumanRendering(env) # 封装后，只接收render_mode="rgb_array"的env，使得step和reset的时候展示渲染图像
 
     for _ in range(episodes):
-        obs, info = env.reset(options={
-            'weed_dist': 'gaussian'
+        # env.set_obstacle_range([0,0])
+        obs, info = env.reset(seed=120, options={
+            'weed_dist': 'gaussian',
+            # 'map_id': 80,
+            "weed_num" : 100
         })
+        env.action_space.seed(66)
         done = False
         while not done:
             action = env.action_space.sample()
@@ -742,6 +756,6 @@ if __name__ == "__main__":
             # obs, reward, done, _, info = env.step((0, 4))
             print(reward)
             if if_render:
-                env.render()
+                img = env.render()
 
     env.close()

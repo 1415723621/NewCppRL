@@ -35,7 +35,7 @@ class CppEnvironment(gym.Env):
 
     obstacle_size_range = (10, 30)
 
-    render_repeat_times = 1
+    render_repeat_times = 5
 
     def __init__(
             self,
@@ -635,9 +635,12 @@ if __name__ == "__main__":
     env: CppEnvironment = HumanRendering(env)
 
     for _ in range(episodes):
-        obs, info = env.reset(options={
-            'weed_dist': 'gaussian'
+        obs, info = env.reset(seed=120, options={
+            'weed_dist': 'gaussian',
+            # 'map_id': 80,
+            "weed_num" : 100
         })
+        env.action_space.seed(66)
         done = False
         while not done:
             action = env.action_space.sample()
