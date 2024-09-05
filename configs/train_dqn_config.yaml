@@ -1,7 +1,7 @@
 device: null
 #pretrained_model: ckpt/dqn/240829_212534_nstep=1_bs=2048_act=32/t[01500]_r[999.22=168.44~1788.53].pt
 pretrained_model: null
-ckpt_name: local_test
+ckpt_name: recurrence_lr4e-4_Fq3K_Sp3K_Ob399_wN0500_dt2M_aF1.2M_bs2048
 seed: 42
 
 # collector
