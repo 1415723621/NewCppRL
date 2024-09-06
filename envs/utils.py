@@ -79,7 +79,6 @@ class MowerAgent:
     occupancy = math.hypot(width, length)
     lw_ratio = math.degrees(math.atan2(width / occupancy, length / occupancy))
 
-
     def __init__(
             self,
             position: tuple[float, float] = (None, None),
