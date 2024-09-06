@@ -227,7 +227,7 @@ class CustomEvaluator:
 
 if __name__ == '__main__':
     evaluator = CustomEvaluator(
-        episodes=16,
+        episodes=4,
         max_frames=4,
         max_step=1500,
         skip_frames=30,
