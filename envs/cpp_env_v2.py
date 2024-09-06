@@ -12,6 +12,9 @@ from envs.utils import get_map_pasture_larger, MowerAgent, total_variation_mat, 
 
 
 class CppEnv(CppEnvBase):
+    """
+    Using Apf Of Frontier Edges as observation.
+    """
     render_farmland_outsides = False  # 是否渲染农田外的扩散场
     render_weed = False  # 是否渲染操的扩散场
     render_obstacle = False  # 是否渲染障碍物的扩散场
@@ -24,7 +27,7 @@ class CppEnv(CppEnvBase):
             eps = gamma ** max_step
         return np.where(map_apf < eps, 0., map_apf)
 
-    def observation(self) -> dict[str, np.ndarray | float]:
+    def get_maps_and_mask(self) -> tuple[np.ndarray, list[float]]:
         apf_frontier = np.logical_and(total_variation_mat(self.map_frontier), self.map_mist)
         apf_obstacle = np.logical_and(total_variation_mat(self.map_obstacle), self.map_mist)
         apf_weed = np.logical_and(self.map_weed, np.logical_not(self.map_frontier))
@@ -48,46 +51,19 @@ class CppEnv(CppEnvBase):
             if not is_empty:
                 apf_weed = self.get_discounted_apf(apf_weed, 40, 1e-2)
         apf_obstacle = np.maximum(apf_obstacle, np.logical_and(self.map_obstacle, self.map_mist))
-        # apf_trajectory, is_empty = cpu_apf_bool(self.map_trajectory)
-        # if not is_empty:
-        #     apf_trajectory = self.get_discounted_apf(apf_trajectory, 4)
-        obs = np.stack((
+        apf_trajectory, is_empty = cpu_apf_bool(self.map_trajectory)
+        if not is_empty:
+            apf_trajectory = self.get_discounted_apf(apf_trajectory, 4)
+        maps = np.stack((
             apf_frontier,
             np.logical_not(self.map_mist),
             apf_obstacle,
             apf_weed,
             # apf_trajectory,
         ), axis=-1)
-        self.obs_apf = obs.transpose(2, 0, 1)
-        diag_r = self.state_size[0] / 2 * np.sqrt(2)
-        diag_r_int = np.ceil(diag_r).astype(np.int32)
-        obs = cv2.copyMakeBorder(obs, diag_r_int, diag_r_int, diag_r_int, diag_r_int,
-                                 cv2.BORDER_CONSTANT, value=np.array((0., 0., 1., 0.)), )
-        leftmost = round(self.agent.y)
-        rightmost = round(self.agent.y + 2 * diag_r_int)
-        upmost = round(self.agent.x)
-        bottommost = round(self.agent.x + 2 * diag_r_int)
-        obs_cropped = obs[leftmost:rightmost, upmost:bottommost, :]
-
-        rotation_mat = cv2.getRotationMatrix2D((diag_r, diag_r), 180 + self.agent.direction, 1.0)
-        dst_size = 2 * diag_r_int
-        delta_leftmost = int(diag_r_int - self.state_size[0] / 2)
-        delta_rightmost = delta_leftmost + self.state_size[0]
-        obs_rotated = cv2.warpAffine(obs_cropped.astype(np.float32), rotation_mat, (dst_size, dst_size))
-        obs_rotated = obs_rotated[
-                      delta_leftmost:delta_rightmost,
-                      delta_leftmost:delta_rightmost,
-                      :]
-        if self.state_downsize != self.state_size:
-            obs_rotated_resize = cv2.resize(obs_rotated, self.state_downsize)
-        else:
-            obs_rotated_resize = obs_rotated
-        obs = obs_rotated_resize.transpose(2, 0, 1)
-        if self.use_sgcnn:
-            obs = self.get_sgcnn_obs(obs)
-        return {'observation': obs,
-                'vector': self.agent.last_steer / self.w_range.max,
-                'weed_ratio': 1 - self.weed_num_t / self.weed_num}
+        self.obs_apf = maps.transpose(2, 0, 1)
+        mask = [0., 0., 1., 0., 0.]
+        return maps, mask
 
     def get_reward(self,  # 这个y_tp1不是很懂啥意思
                    steer_tp1: float,
@@ -123,13 +99,13 @@ class CppEnv(CppEnvBase):
         reward_apf = 0.
         if self.use_apf:
             reward_apf_frontier = 0.0 * (self.obs_apf[0][y_tp1, x_tp1] - self.obs_apf[0][y_t, x_t])
-            reward_apf_obstacle = -0.3 * (self.obs_apf[2][y_tp1, x_tp1] - self.obs_apf[2][y_t, x_t])
+            reward_apf_obstacle = -0.5 * self.obs_apf[2][y_tp1, x_tp1]
             reward_apf_weed = 5.0 * (self.obs_apf[3][y_tp1, x_tp1] - self.obs_apf[3][y_t, x_t])
-            if reward_apf_obstacle >= 0.:
-                reward_apf_obstacle = 0.
+            # reward_apf_traj = -1.0 * self.obs_apf[4][y_tp1, x_tp1]
             reward_apf = 1.0 * (reward_apf_frontier
                                 + reward_apf_obstacle
                                 + reward_apf_weed
+                                # + reward_apf_traj
                                 )
         # Summary
         reward = (reward_const

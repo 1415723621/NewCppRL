@@ -10,40 +10,20 @@ from envs.utils import MowerAgent, total_variation
 
 
 class CppEnv(CppEnvBase):
+    """
+    This env contains mist that the agent must explore to know what's inside.
+    """
 
-    def observation(self) -> dict[str, np.ndarray | float]:
-        obs = np.stack((
+    def get_maps_and_mask(self) -> tuple[np.ndarray, list[float]]:
+        maps = np.stack((
             np.logical_and(self.map_frontier, self.map_mist),
             np.logical_not(self.map_mist),
             self.map_obstacle,
-            self.map_weed,
+            np.logical_and(self.map_weed, np.logical_not(self.map_frontier)),
+            self.map_trajectory
         ), axis=-1)
-        diag_r = self.state_size[0] / 2 * np.sqrt(2)
-        diag_r_int = np.ceil(diag_r).astype(np.int32)
-        obs = cv2.copyMakeBorder(obs, diag_r_int, diag_r_int, diag_r_int, diag_r_int,
-                                 cv2.BORDER_CONSTANT, value=np.array((0., 0., 1., 0.)), )
-        leftmost = round(self.agent.y)
-        rightmost = round(self.agent.y + 2 * diag_r_int)
-        upmost = round(self.agent.x)
-        bottommost = round(self.agent.x + 2 * diag_r_int)
-        obs_cropped = obs[leftmost:rightmost, upmost:bottommost, :]
-
-        rotation_mat = cv2.getRotationMatrix2D((diag_r, diag_r), 180 + self.agent.direction, 1.0)
-        dst_size = 2 * diag_r_int
-        delta_leftmost = int(diag_r_int - self.state_size[0] / 2)
-        delta_rightmost = delta_leftmost + self.state_size[0]
-        obs_rotated = cv2.warpAffine(obs_cropped.astype(np.float32), rotation_mat, (dst_size, dst_size))
-        obs_rotated = obs_rotated[
-                      delta_leftmost:delta_rightmost,
-                      delta_leftmost:delta_rightmost,
-                      :]
-        obs_rotated_resize = cv2.resize(obs_rotated, self.state_downsize)
-        obs = obs_rotated_resize.transpose(2, 0, 1)
-        if self.use_sgcnn:
-            obs = self.get_sgcnn_obs(obs)
-        return {'observation': obs,
-                'vector': self.agent.last_steer / self.w_range.max,
-                'weed_ratio': 1 - self.weed_num_t / self.weed_num}
+        mask = [0., 0., 1., 0., 0.]
+        return maps, mask
 
     def get_reward(self,
                    steer_tp1: float,

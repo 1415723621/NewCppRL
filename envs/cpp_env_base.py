@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 import os
 from pathlib import Path
-from typing import Optional, Tuple, Union, Any
+from typing import Optional, Tuple, Union, Any, Sequence
 
 import cv2
 import gymnasium as gym
@@ -205,59 +205,7 @@ class CppEnvBase(gym.Env):
                    y_t: int,
                    x_tp1: int,
                    y_tp1: int) -> float:
-        weed_num_tp1 = self.map_weed.sum(dtype=np.int32)
-        frontier_area_tp1 = self.map_frontier.sum(dtype=np.int32)
-        frontier_tv_tp1 = total_variation(self.map_frontier.astype(np.int32))
-        # Const
-        reward_const = -0.1
-        # Turning
-        reward_turn_gap = -0.5 * abs(steer_tp1 - self.steer_t) / self.w_range.max
-        reward_turn_direction = -0.30 * (0. if (steer_tp1 * self.steer_t >= 0
-                                                or (steer_tp1 == 0 and self.steer_t == 0))
-                                         else 1.)
-        reward_turn_self = 0.25 * (0.4 - abs(steer_tp1 / self.w_range.max) ** 0.5)
-        reward_turn = 0.0 * (reward_turn_gap
-                             + reward_turn_direction
-                             + reward_turn_self
-                             )
-        # Frontier
-        reward_frontier_coverage = (self.frontier_area_t - frontier_area_tp1) / (
-                2 * MowerAgent.width * self.v_range.max)
-        reward_frontier_tv = 0.5 * (self.frontier_tv_t - frontier_tv_tp1) / self.v_range.max
-        reward_frontier = 0.125 * (reward_frontier_coverage
-                                   + reward_frontier_tv
-                                   )
-        # Weed
-        reward_weed = 20.0 * (self.weed_num_t - weed_num_tp1)
-        # Apf
-        reward_apf = 0.
-        if self.use_apf:
-            reward_apf_frontier = 0.0 * (self.obs_apf[0][y_tp1, x_tp1] - self.obs_apf[0][y_t, x_t])
-            reward_apf_obstacle = -0.3 * (self.obs_apf[2][y_tp1, x_tp1] - self.obs_apf[2][y_t, x_t])
-            reward_apf_weed = 5.0 * (self.obs_apf[3][y_tp1, x_tp1] - self.obs_apf[3][y_t, x_t])
-            if reward_apf_obstacle >= 0.:
-                reward_apf_obstacle = 0.
-            reward_apf = 1.0 * (reward_apf_frontier
-                                + reward_apf_obstacle
-                                + reward_apf_weed
-                                )
-        # Summary
-        reward = (reward_const
-                  + reward_frontier
-                  + reward_weed
-                  + reward_apf
-                  + reward_turn
-                  )
-        reward = np.where(
-            np.abs(reward) < 1e-8,
-            0.,
-            reward,
-        )
-        self.weed_num_t = weed_num_tp1
-        self.frontier_area_t = frontier_area_tp1
-        self.frontier_tv_t = frontier_tv_tp1
-        self.steer_t = steer_tp1
-        return reward
+        raise NotImplementedError
 
     def check_collision(self) -> tuple[float, bool]:
         convex_hull = self.agent.convex_hull
@@ -283,64 +231,48 @@ class CppEnvBase(gym.Env):
             eps = gamma ** max_step
         return np.where(map_apf < eps, 0., map_apf)
 
-    def observation(self) -> dict[str, np.ndarray | float]:
-        apf_frontier = np.logical_and(total_variation_mat(self.map_frontier), self.map_mist)
-        apf_obstacle = np.logical_and(total_variation_mat(self.map_obstacle), self.map_mist)
-        apf_weed = np.logical_and(self.map_weed, np.logical_not(self.map_frontier))
-        if self.use_apf:
-            apf_frontier, is_empty = cpu_apf_bool(apf_frontier)
-            if not is_empty:
-                apf_frontier = self.get_discounted_apf(apf_frontier, 30)
-            apf_obstacle, is_empty = cpu_apf_bool(
-                np.logical_and(np.pad(apf_obstacle,
-                                      pad_width=[[1, 1], [1, 1]],
-                                      mode='constant',
-                                      constant_values=(1, 1)),
-                               np.pad(self.map_mist,
-                                      pad_width=[[1, 1], [1, 1]],
-                                      mode='constant',
-                                      constant_values=(1, 1))))
-            apf_obstacle = apf_obstacle[1:-1, 1:-1]
-            if not is_empty:
-                apf_obstacle = self.get_discounted_apf(apf_obstacle, 10)
-            apf_weed, is_empty = cpu_apf_bool(apf_weed)
-            if not is_empty:
-                apf_weed = self.get_discounted_apf(apf_weed, 40, 1e-2)
-        apf_obstacle = np.maximum(apf_obstacle, np.logical_and(self.map_obstacle, self.map_mist))
-        # apf_trajectory, is_empty = cpu_apf_bool(self.map_trajectory)
-        # if not is_empty:
-        #     apf_trajectory = self.get_discounted_apf(apf_trajectory, 4)
-        obs = np.stack((
-            apf_frontier,
-            np.logical_not(self.map_mist),
-            apf_obstacle,
-            apf_weed,
-            # apf_trajectory,
-        ), axis=-1)
-        self.obs_apf = obs.transpose(2, 0, 1)
+    def get_rotated_obs_(self, obs, mask: Sequence[float]):
         diag_r = self.state_size[0] / 2 * np.sqrt(2)
         diag_r_int = np.ceil(diag_r).astype(np.int32)
         obs = cv2.copyMakeBorder(obs, diag_r_int, diag_r_int, diag_r_int, diag_r_int,
-                                 cv2.BORDER_CONSTANT, value=np.array((0., 0., 1., 0.)), )
+                                 cv2.BORDER_CONSTANT, value=mask, )
         leftmost = round(self.agent.y)
         rightmost = round(self.agent.y + 2 * diag_r_int)
         upmost = round(self.agent.x)
         bottommost = round(self.agent.x + 2 * diag_r_int)
-        obs_cropped = obs[leftmost:rightmost, upmost:bottommost, :]
+        obs_cropped = obs[leftmost:rightmost, upmost:bottommost]
 
         rotation_mat = cv2.getRotationMatrix2D((diag_r, diag_r), 180 + self.agent.direction, 1.0)
         dst_size = 2 * diag_r_int
         delta_leftmost = int(diag_r_int - self.state_size[0] / 2)
         delta_rightmost = delta_leftmost + self.state_size[0]
         obs_rotated = cv2.warpAffine(obs_cropped.astype(np.float32), rotation_mat, (dst_size, dst_size))
-        obs_rotated = obs_rotated[
-                      delta_leftmost:delta_rightmost,
-                      delta_leftmost:delta_rightmost,
-                      :]
-        if self.state_downsize != self.state_size:
-            obs_rotated_resize = cv2.resize(obs_rotated, self.state_downsize)
+        obs_rotated = obs_rotated[delta_leftmost:delta_rightmost, delta_leftmost:delta_rightmost]
+        if obs_rotated.ndim == 2:
+            obs_rotated = obs_rotated.reshape(*obs_rotated.shape, 1)
+        return obs_rotated
+
+    def get_rotated_obs(self, obs: np.ndarray, mask: Sequence[float]) -> np.ndarray:
+        channel_num = obs.shape[-1]
+        ch_beg = 0
+        candidates = []
+        for i in range(0, channel_num, 4):
+            ch_end = min(i + 4, channel_num)
+            candidates.append(self.get_rotated_obs_(obs[:, :, ch_beg:ch_end], mask[ch_beg:ch_end]))
+            ch_beg = ch_end
+        if len(candidates) > 1:
+            candidates = np.concatenate(candidates, axis=-1)
         else:
-            obs_rotated_resize = obs_rotated
+            candidates = candidates[0]
+        return candidates
+
+    def get_maps_and_mask(self) -> tuple[np.ndarray, list[float]]:
+        raise NotImplementedError
+
+    def observation(self) -> dict[str, np.ndarray | float]:
+        obs, mask = self.get_maps_and_mask()
+        obs_rotated = self.get_rotated_obs(obs, mask)
+        obs_rotated_resize = cv2.resize(obs_rotated, self.state_downsize)
         obs = obs_rotated_resize.transpose(2, 0, 1)
         if self.use_sgcnn:
             obs = self.get_sgcnn_obs(obs)
@@ -546,8 +478,6 @@ class CppEnvBase(gym.Env):
             # (4, 1, 2)
             box = box.reshape((-1, 1, 2)).astype(np.int32)
             cv2.fillPoly(self.map_obstacle, [box], color=(0,))
-            # self.map_mist = np.where(self.map_obstacle, 1., 0.)
-            # self.map_mist = 1 - cv2.fillPoly(self.map_mist, [box], color=(1,))
         else:
             self.map_obstacle = np.zeros((self.dimensions[1], self.dimensions[0]), dtype=np.uint8)
         num_obstacles = self.np_random.integers(*self.num_obstacles_range) if self.num_obstacles_range[1] > 0 else 0
@@ -681,38 +611,3 @@ class CppEnvBase(gym.Env):
             pygame.display.quit()
             pygame.quit()
             self.isopen = False
-
-
-if __name__ == "__main__":
-    if_render = True
-    episodes = 3
-    env = CppEnvBase(
-        render_mode='rgb_array' if if_render else None,
-        # state_pixels=True,
-        state_pixels=False,
-        # num_obstacles_range = [0, 0]
-    )
-    # 封装后，只接收render_mode="rgb_array"的env，使得step和reset的时候展示渲染图像
-    env: CppEnvBase = HumanRendering(env)
-
-    for _ in range(episodes):
-        # env.set_obstacle_range([0, 0])
-        obs, info = env.reset(
-            seed=120,
-            options={
-                'weed_dist': 'gaussian',
-                "weed_num": 100
-            }
-        )
-        env.action_space.seed(66)
-        done = False
-        while not done:
-            action = env.action_space.sample()
-            # action = 1 * 21 + 10
-            obs, reward, done, _, info = env.step(action)
-            # obs, reward, done, _, info = env.step((0, 4))
-            print(reward)
-            if if_render:
-                img = env.render()
-
-    env.close()

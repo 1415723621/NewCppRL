@@ -106,19 +106,20 @@ def main(cfg: "DictConfig"):  # noqa: F821
     # Create the optimizer
     critic_params = list(loss_module.qvalue_network_params.flatten_keys().values())
     actor_params = list(loss_module.actor_network_params.flatten_keys().values())
-    optimizer_actor = torch.optim.Adam(
+    optimizer_actor = torch.optim.AdamW(
         actor_params,
-        lr=cfg.optim.lr,
-        weight_decay=cfg.optim.weight_decay,
+        lr=cfg.optim.lr_actor,
+        weight_decay=cfg.optim.weight_decay_actor,
     )
-    optimizer_critic = torch.optim.Adam(
+    optimizer_critic = torch.optim.AdamW(
         critic_params,
-        lr=cfg.optim.lr,
-        weight_decay=cfg.optim.weight_decay,
+        lr=cfg.optim.lr_critic,
+        weight_decay=cfg.optim.weight_decay_critic,
     )
-    optimizer_alpha = torch.optim.Adam(
+    optimizer_alpha = torch.optim.AdamW(
         [loss_module.log_alpha],
-        lr=3.0e-4,
+        lr=cfg.optim.lr_alpha,
+        weight_decay=cfg.optim.weight_decay_alpha,
     )
 
     # Create the logger
@@ -185,21 +186,26 @@ def main(cfg: "DictConfig"):  # noqa: F821
         pbar.update(data.numel())
         data = data.reshape(-1)
         current_frames = data.numel()
-        replay_buffer.extend(data)
         collected_frames += current_frames
 
         # Get training rewards and episode lengths
-        episode_rewards = data["next", "episode_reward"][data["next", "done"]]
+        episode_rewards = data["next", "episode_reward"][data["next", "done"]] # 取出有效的episode结束累计奖励
         if len(episode_rewards) > 0:
             episode_reward_mean = episode_rewards.mean().item()
             episode_length = data["next", "step_count"][data["next", "done"]]
             episode_length_mean = episode_length.sum().item() / len(episode_length)
+            episode_weed_ratio = data["next", "weed_ratio"][data["next", "done"]]
+            episode_weed_ratio_mean = episode_weed_ratio.sum().item() / len(episode_length)
             log_info.update(
                 {
                     "train/episode_reward": episode_reward_mean,
                     "train/episode_length": episode_length_mean,
+                    "train/episode_weed_ratio": episode_weed_ratio_mean,
                 }
             )
+        data.pop('weed_ratio')  # 去除额外信息
+        data.pop(('next', 'weed_ratio'))  # 去除额外信息
+        replay_buffer.extend(data)
 
         if collected_frames < init_random_frames:
             if logger:
