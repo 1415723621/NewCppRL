@@ -6,7 +6,7 @@ import envs  # noqa
 render = False
 # render = True
 env = gym.make(
-    'Pasture-v3',
+    'Pasture-v2',
     render_mode='rgb_array' if render else None,
     # save_pixels=False,
     # action_type="discrete",

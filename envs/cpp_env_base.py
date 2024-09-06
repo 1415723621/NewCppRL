@@ -12,9 +12,8 @@ import torch
 import torch.nn.functional as F
 from cpu_apf import cpu_apf_bool  # noqa
 from gymnasium.error import DependencyNotInstalled
-from gymnasium.wrappers import HumanRendering
 
-from envs.utils import get_map_pasture_larger, MowerAgent, NumericalRange, total_variation_mat, total_variation
+from envs.utils import get_map_pasture_larger, MowerAgent, NumericalRange, total_variation
 
 
 class CppEnvBase(gym.Env):
@@ -34,6 +33,7 @@ class CppEnvBase(gym.Env):
     nvec = (7, 21)
 
     obstacle_size_range = (10, 25)
+    sgcnn_size = 16
 
     render_repeat_times = 2  # 渲染时放缩比例
 
@@ -49,6 +49,7 @@ class CppEnvBase(gym.Env):
             use_global_obs: bool = True,
             use_apf: bool = True,
             use_box_boundary: bool = True,  # 在场景外是否绘制障碍物包裹
+            use_traj: bool = True,
             map_dir: str = 'envs/maps/1-400',
     ):
         super().__init__()
@@ -65,14 +66,16 @@ class CppEnvBase(gym.Env):
         self.use_global_obs = use_global_obs
         self.use_apf = use_apf
         self.use_box_boundary = use_box_boundary
-        obs_shape = (4, *self.state_downsize,)  # TODO: 要改成5如果加上轨迹之后
+        self.use_traj = use_traj
+        total_channels = 4 + use_traj
+        obs_shape = (total_channels, *self.state_downsize)
         if use_sgcnn:
-            obs_shape = (16 + 4 * use_global_obs, *(ds // 8 for ds in self.state_downsize))
+            obs_shape = (total_channels * (4 + use_global_obs), *(ds // 8 for ds in self.state_downsize))
 
         # RL parameters
         self.observation_space = gym.spaces.Dict({
             'observation': gym.spaces.Box(
-                low=-1., high=1., shape=obs_shape, dtype=np.float32
+                low=0., high=1., shape=obs_shape, dtype=np.float32
             ),
             'vector': gym.spaces.Box(
                 low=-1., high=1., dtype=np.float32
@@ -199,13 +202,62 @@ class CppEnvBase(gym.Env):
         obs = self.observation()
         return obs, reward, done, time_out, {}
 
+    def get_extra_reward(self,
+                         steer_tp1: float,
+                         x_t: int,
+                         y_t: int,
+                         x_tp1: int,
+                         y_tp1: int) -> float:
+        return 0.
+
     def get_reward(self,  # 这个y_tp1不是很懂啥意思
                    steer_tp1: float,
                    x_t: int,
                    y_t: int,
                    x_tp1: int,
                    y_tp1: int) -> float:
-        raise NotImplementedError
+        weed_num_tp1 = self.map_weed.sum(dtype=np.int32)
+        frontier_area_tp1 = self.map_frontier.sum(dtype=np.int32)
+        frontier_tv_tp1 = total_variation(self.map_frontier.astype(np.int32))
+        # Const
+        reward_const = -0.1
+        # Turning
+        reward_turn_gap = -0.5 * abs(steer_tp1 - self.steer_t) / self.w_range.max
+        reward_turn_direction = -0.30 * (0. if (steer_tp1 * self.steer_t >= 0
+                                                or (steer_tp1 == 0 and self.steer_t == 0))
+                                         else 1.)
+        reward_turn_self = 0.25 * (0.4 - abs(steer_tp1 / self.w_range.max) ** 0.5)
+        reward_turn = 0.0 * (reward_turn_gap
+                             + reward_turn_direction
+                             + reward_turn_self
+                             )
+        # Frontier
+        reward_frontier_coverage = (self.frontier_area_t - frontier_area_tp1) / (
+                2 * MowerAgent.width * self.v_range.max)
+        reward_frontier_tv = 0.5 * (self.frontier_tv_t - frontier_tv_tp1) / self.v_range.max
+        reward_frontier = 0.125 * (reward_frontier_coverage
+                                   + reward_frontier_tv
+                                   )
+        # Weed
+        reward_weed = 20.0 * (self.weed_num_t - weed_num_tp1)
+        reward_extra = self.get_extra_reward(steer_tp1, x_t, y_t, x_tp1, y_tp1)
+        # Summary
+        reward = (reward_const
+                  + reward_frontier
+                  + reward_weed
+                  + reward_extra
+                  + reward_turn
+                  )
+        reward = np.where(
+            np.abs(reward) < 1e-8,
+            0.,
+            reward,
+        )
+        self.weed_num_t = weed_num_tp1
+        self.frontier_area_t = frontier_area_tp1
+        self.frontier_tv_t = frontier_tv_tp1
+        self.steer_t = steer_tp1
+        return reward
 
     def check_collision(self) -> tuple[float, bool]:
         convex_hull = self.agent.convex_hull
@@ -231,16 +283,16 @@ class CppEnvBase(gym.Env):
             eps = gamma ** max_step
         return np.where(map_apf < eps, 0., map_apf)
 
-    def get_rotated_obs_(self, obs, mask: Sequence[float]):
+    def get_rotated_obs_(self, maps, mask: Sequence[float]):
         diag_r = self.state_size[0] / 2 * np.sqrt(2)
         diag_r_int = np.ceil(diag_r).astype(np.int32)
-        obs = cv2.copyMakeBorder(obs, diag_r_int, diag_r_int, diag_r_int, diag_r_int,
-                                 cv2.BORDER_CONSTANT, value=mask, )
+        maps = cv2.copyMakeBorder(maps, diag_r_int, diag_r_int, diag_r_int, diag_r_int,
+                                  cv2.BORDER_CONSTANT, value=mask, )
         leftmost = round(self.agent.y)
         rightmost = round(self.agent.y + 2 * diag_r_int)
         upmost = round(self.agent.x)
         bottommost = round(self.agent.x + 2 * diag_r_int)
-        obs_cropped = obs[leftmost:rightmost, upmost:bottommost]
+        obs_cropped = maps[leftmost:rightmost, upmost:bottommost]
 
         rotation_mat = cv2.getRotationMatrix2D((diag_r, diag_r), 180 + self.agent.direction, 1.0)
         dst_size = 2 * diag_r_int
@@ -252,13 +304,13 @@ class CppEnvBase(gym.Env):
             obs_rotated = obs_rotated.reshape(*obs_rotated.shape, 1)
         return obs_rotated
 
-    def get_rotated_obs(self, obs: np.ndarray, mask: Sequence[float]) -> np.ndarray:
-        channel_num = obs.shape[-1]
+    def get_rotated_obs(self, maps: np.ndarray, mask: Sequence[float]) -> np.ndarray:
+        channel_num = maps.shape[-1]
         ch_beg = 0
         candidates = []
         for i in range(0, channel_num, 4):
             ch_end = min(i + 4, channel_num)
-            candidates.append(self.get_rotated_obs_(obs[:, :, ch_beg:ch_end], mask[ch_beg:ch_end]))
+            candidates.append(self.get_rotated_obs_(maps[:, :, ch_beg:ch_end], mask[ch_beg:ch_end]))
             ch_beg = ch_end
         if len(candidates) > 1:
             candidates = np.concatenate(candidates, axis=-1)
@@ -270,18 +322,63 @@ class CppEnvBase(gym.Env):
         raise NotImplementedError
 
     def observation(self) -> dict[str, np.ndarray | float]:
-        obs, mask = self.get_maps_and_mask()
-        obs_rotated = self.get_rotated_obs(obs, mask)
+        maps, mask = self.get_maps_and_mask()
+        obs_rotated = self.get_rotated_obs(maps, mask)
         obs_rotated_resize = cv2.resize(obs_rotated, self.state_downsize)
         obs = obs_rotated_resize.transpose(2, 0, 1)
         if self.use_sgcnn:
-            obs = self.get_sgcnn_obs(obs)
+            if self.use_global_obs:
+                obs = self.get_sgcnn_obs(obs, maps, mask)
+            else:
+                obs = self.get_sgcnn_obs(obs, None, None)
         return {'observation': obs,
                 'vector': self.agent.last_steer / self.w_range.max,
                 'weed_ratio': 1 - self.weed_num_t / self.weed_num}
 
-    def get_sgcnn_obs(self, obs: np.ndarray):  # 在obs的基础上做多尺度图
-        sgcnn_size = 16
+    def get_global_obs_(self, maps, mask: Sequence[float]):
+        diag_r = self.dimensions[0] / 2 * np.sqrt(2)
+        diag_r_int = np.ceil(diag_r).astype(np.int32)
+        obs_global = cv2.copyMakeBorder(maps, diag_r_int, diag_r_int, diag_r_int, diag_r_int,
+                                        cv2.BORDER_CONSTANT, value=mask, )
+        leftmost = round(self.agent.y)
+        rightmost = round(self.agent.y + 2 * diag_r_int)
+        upmost = round(self.agent.x)
+        bottommost = round(self.agent.x + 2 * diag_r_int)
+        obs_cropped = obs_global[leftmost:rightmost, upmost:bottommost]
+
+        rotation_mat = cv2.getRotationMatrix2D((diag_r, diag_r), 180 + self.agent.direction, 1.0)
+        dst_size = 2 * diag_r_int
+        delta_leftmost = int(diag_r_int - self.dimensions[0] / 2)
+        delta_rightmost = delta_leftmost + self.dimensions[0]
+        obs_global = cv2.warpAffine(obs_cropped.astype(np.float32), rotation_mat, (dst_size, dst_size))
+        obs_global = obs_global[delta_leftmost:delta_rightmost, delta_leftmost:delta_rightmost]
+        if obs_global.ndim == 2:
+            obs_global = obs_global.reshape(*obs_global.shape, 1)
+        obs_global = obs_global.transpose(2, 0, 1)
+        kernel_size = int(np.round(self.dimensions[0] / self.sgcnn_size)) - 1
+        obs_global = F.max_pool2d(torch.from_numpy(obs_global),
+                                  (kernel_size, kernel_size),
+                                  kernel_size).numpy()
+        obs_global = obs_global.transpose(1, 2, 0)
+        return obs_global
+
+    def get_global_obs(self, maps: np.ndarray, mask: Sequence[float]) -> np.ndarray:
+        channel_num = maps.shape[-1]
+        ch_beg = 0
+        candidates = []
+        for i in range(0, channel_num, 4):
+            ch_end = min(i + 4, channel_num)
+            candidates.append(self.get_global_obs_(maps[:, :, ch_beg:ch_end], mask[ch_beg:ch_end]))
+            ch_beg = ch_end
+        if len(candidates) > 1:
+            candidates = np.concatenate(candidates, axis=-1)
+        else:
+            candidates = candidates[0]
+        return candidates
+
+    def get_sgcnn_obs(self, obs: np.ndarray,
+                      maps: Optional[np.ndarray] = None,
+                      mask: Optional[Sequence[float]] = None):  # 在obs的基础上做多尺度图
         obs_ = obs
         obs_list = []
         center_size = self.state_downsize[0] // 2
@@ -289,42 +386,14 @@ class CppEnvBase(gym.Env):
             for _ in range(4):
                 obs_list.append(obs_[
                                 :,
-                                (center_size - sgcnn_size // 2):(center_size + sgcnn_size // 2),
-                                (center_size - sgcnn_size // 2):(center_size + sgcnn_size // 2),
+                                (center_size - self.sgcnn_size // 2):(center_size + self.sgcnn_size // 2),
+                                (center_size - self.sgcnn_size // 2):(center_size + self.sgcnn_size // 2),
                                 ])
                 obs_ = F.max_pool2d(torch.from_numpy(obs_), (2, 2), 2).numpy()
                 center_size //= 2
             if self.use_global_obs:
-                obs_global = np.stack((
-                    self.map_frontier,
-                    self.map_obstacle,
-                    self.map_weed,
-                    self.map_trajectory,
-                ), axis=-1)
-                diag_r = self.dimensions[0] / 2 * np.sqrt(2)
-                diag_r_int = np.ceil(diag_r).astype(np.int32)
-                obs_global = cv2.copyMakeBorder(obs_global, diag_r_int, diag_r_int, diag_r_int, diag_r_int,
-                                                cv2.BORDER_CONSTANT, value=np.array((0., 0., 1., 0.)), )
-                leftmost = round(self.agent.y)
-                rightmost = round(self.agent.y + 2 * diag_r_int)
-                upmost = round(self.agent.x)
-                bottommost = round(self.agent.x + 2 * diag_r_int)
-                obs_cropped = obs_global[leftmost:rightmost, upmost:bottommost, :]
-
-                rotation_mat = cv2.getRotationMatrix2D((diag_r, diag_r), 180 + self.agent.direction, 1.0)
-                dst_size = 2 * diag_r_int
-                delta_leftmost = int(diag_r_int - self.dimensions[0] / 2)
-                delta_rightmost = delta_leftmost + self.dimensions[0]
-                obs_global = cv2.warpAffine(obs_cropped.astype(np.float32), rotation_mat, (dst_size, dst_size))
-                obs_global = obs_global[
-                             delta_leftmost:delta_rightmost,
-                             delta_leftmost:delta_rightmost,
-                             :]
+                obs_global = self.get_global_obs(maps, mask)
                 obs_global = obs_global.transpose(2, 0, 1)
-                kernel_size = int(np.round(self.dimensions[0] / sgcnn_size)) - 1
-                obs_global = F.max_pool2d(torch.from_numpy(obs_global),
-                                          (kernel_size, kernel_size),
-                                          kernel_size).numpy()
                 obs_list.append(obs_global)
         return np.concatenate(obs_list, axis=0, dtype=np.float32)
 

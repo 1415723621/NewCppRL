@@ -10,4 +10,5 @@ env:
     use_global_obs: True
     use_apf: True
     use_box_boundary: True
+    use_traj: False
     map_dir: envs/maps/1-400

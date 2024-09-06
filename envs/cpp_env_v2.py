@@ -8,7 +8,7 @@ from cpu_apf import cpu_apf_bool  # noqa
 from gymnasium.wrappers import HumanRendering
 
 from envs.cpp_env_base import CppEnvBase
-from envs.utils import get_map_pasture_larger, MowerAgent, total_variation_mat, total_variation
+from envs.utils import get_map_pasture_larger, total_variation_mat
 
 
 class CppEnv(CppEnvBase):
@@ -31,6 +31,7 @@ class CppEnv(CppEnvBase):
         apf_frontier = np.logical_and(total_variation_mat(self.map_frontier), self.map_mist)
         apf_obstacle = np.logical_and(total_variation_mat(self.map_obstacle), self.map_mist)
         apf_weed = np.logical_and(self.map_weed, np.logical_not(self.map_frontier))
+        apf_trajectory = self.map_trajectory
         if self.use_apf:
             apf_frontier, is_empty = cpu_apf_bool(apf_frontier)
             if not is_empty:
@@ -50,80 +51,44 @@ class CppEnv(CppEnvBase):
             apf_weed, is_empty = cpu_apf_bool(apf_weed)
             if not is_empty:
                 apf_weed = self.get_discounted_apf(apf_weed, 40, 1e-2)
+            apf_trajectory, is_empty = cpu_apf_bool(apf_trajectory)
+            if not is_empty:
+                apf_trajectory = self.get_discounted_apf(apf_trajectory, 4)
         apf_obstacle = np.maximum(apf_obstacle, np.logical_and(self.map_obstacle, self.map_mist))
-        apf_trajectory, is_empty = cpu_apf_bool(self.map_trajectory)
-        if not is_empty:
-            apf_trajectory = self.get_discounted_apf(apf_trajectory, 4)
-        maps = np.stack((
+        maps_list = [
             apf_frontier,
             np.logical_not(self.map_mist),
             apf_obstacle,
             apf_weed,
-            # apf_trajectory,
-        ), axis=-1)
+        ]
+        mask = [0., 0., 1., 0.]
+        if self.use_traj:
+            maps_list.append(apf_trajectory)
+            mask.append(0.)
+        maps = np.stack(maps_list, axis=-1)
         self.obs_apf = maps.transpose(2, 0, 1)
-        mask = [0., 0., 1., 0., 0.]
         return maps, mask
 
-    def get_reward(self,  # 这个y_tp1不是很懂啥意思
-                   steer_tp1: float,
-                   x_t: int,
-                   y_t: int,
-                   x_tp1: int,
-                   y_tp1: int) -> float:
-        weed_num_tp1 = self.map_weed.sum(dtype=np.int32)
-        frontier_area_tp1 = self.map_frontier.sum(dtype=np.int32)
-        frontier_tv_tp1 = total_variation(self.map_frontier.astype(np.int32))
-        # Const
-        reward_const = -0.1
-        # Turning
-        reward_turn_gap = -0.5 * abs(steer_tp1 - self.steer_t) / self.w_range.max
-        reward_turn_direction = -0.30 * (0. if (steer_tp1 * self.steer_t >= 0
-                                                or (steer_tp1 == 0 and self.steer_t == 0))
-                                         else 1.)
-        reward_turn_self = 0.25 * (0.4 - abs(steer_tp1 / self.w_range.max) ** 0.5)
-        reward_turn = 0.0 * (reward_turn_gap
-                             + reward_turn_direction
-                             + reward_turn_self
-                             )
-        # Frontier
-        reward_frontier_coverage = (self.frontier_area_t - frontier_area_tp1) / (
-                2 * MowerAgent.width * self.v_range.max)
-        reward_frontier_tv = 0.5 * (self.frontier_tv_t - frontier_tv_tp1) / self.v_range.max
-        reward_frontier = 0.125 * (reward_frontier_coverage
-                                   + reward_frontier_tv
-                                   )
-        # Weed
-        reward_weed = 20.0 * (self.weed_num_t - weed_num_tp1)
-        # Apf
+    def get_extra_reward(self,
+                         steer_tp1: float,
+                         x_t: int,
+                         y_t: int,
+                         x_tp1: int,
+                         y_tp1: int) -> float:
         reward_apf = 0.
         if self.use_apf:
             reward_apf_frontier = 0.0 * (self.obs_apf[0][y_tp1, x_tp1] - self.obs_apf[0][y_t, x_t])
             reward_apf_obstacle = -0.5 * self.obs_apf[2][y_tp1, x_tp1]
             reward_apf_weed = 5.0 * (self.obs_apf[3][y_tp1, x_tp1] - self.obs_apf[3][y_t, x_t])
-            # reward_apf_traj = -1.0 * self.obs_apf[4][y_tp1, x_tp1]
+            reward_apf_traj = 0.
+            if self.use_traj:
+                reward_apf_traj = -1.0 * self.obs_apf[4][y_tp1, x_tp1]
             reward_apf = 1.0 * (reward_apf_frontier
                                 + reward_apf_obstacle
                                 + reward_apf_weed
-                                # + reward_apf_traj
+                                + reward_apf_traj
                                 )
-        # Summary
-        reward = (reward_const
-                  + reward_frontier
-                  + reward_weed
-                  + reward_apf
-                  + reward_turn
-                  )
-        reward = np.where(
-            np.abs(reward) < 1e-8,
-            0.,
-            reward,
-        )
-        self.weed_num_t = weed_num_tp1
-        self.frontier_area_t = frontier_area_tp1
-        self.frontier_tv_t = frontier_tv_tp1
-        self.steer_t = steer_tp1
-        return reward
+        return reward_apf
 
     def render_map(self) -> np.ndarray:
         rendered_map = np.ones((self.dimensions[1], self.dimensions[0], 3), dtype=np.uint8) * 255.
