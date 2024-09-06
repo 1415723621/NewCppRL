@@ -5,7 +5,7 @@ from torchrl.data import CompositeSpec
 from torchrl.modules import (
     OneHotCategorical,
     ProbabilisticActor,
-    SafeModule,
+    SafeModule, ReparamGradientStrategy,
 )
 
 from torchrl_utils.model.deep_q_net import DeepQNet
@@ -31,7 +31,9 @@ def make_sac_modules(proof_environment):
 
     # Define distribution class and kwargs
     distribution_class = OneHotCategorical
-    distribution_kwargs = {}
+    distribution_kwargs = {
+        "grad_method": ReparamGradientStrategy.RelaxedOneHot
+    }
 
     # Define input keys
     in_keys = ["observation", "vector"]
@@ -59,8 +61,8 @@ def make_sac_modules(proof_environment):
         module=policy_module,
         in_keys=["logits"],
         out_keys=["action"],
-        distribution_class=OneHotCategorical,
-        distribution_kwargs={},
+        distribution_class=distribution_class,
+        distribution_kwargs=distribution_kwargs,
         default_interaction_type=InteractionType.RANDOM,
         return_log_prob=False,
     )

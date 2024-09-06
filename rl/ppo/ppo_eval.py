@@ -1,76 +1,53 @@
 from pathlib import Path
+from typing import Any
 
-import gymnasium as gym
+import numpy
 import numpy as np
 import torch
 import yaml
-from gymnasium.wrappers import HumanRendering
 from omegaconf import DictConfig
-from torchrl.envs.utils import ExplorationType, set_exploration_type
+from torchrl.envs import ExplorationType, set_exploration_type
 
-import envs  # noqa
+from torchrl_utils.custom_evaluator import CustomEvaluator
 
-base_dir = Path(__file__).parent.parent.parent
-cfg = DictConfig(yaml.load(open(f'{base_dir}/configs/env_config.yaml'), Loader=yaml.FullLoader))
-episodes = 10
-render = True
-act_randomly = True
-# act_randomly = False
 
-device = 'cpu'
-pt_path = f'../../ckpt/ppo/2024-08-25_00-18-18_NoTurnApf/t[00502]_r[-222.000].pt'
-actor_critic = torch.load(pt_path).to(device)
-actor = actor_critic.get_policy_operator().to(device)
-# actor = model[0]
+class PpoEvaluator(CustomEvaluator):
+    algo_name = 'ppo'
+    base_dir = Path(__file__).parent.parent.parent
+    env_cfg = DictConfig(yaml.load(open(f'{base_dir}/configs/env_config.yaml'), Loader=yaml.FullLoader))
 
-# cfg.env.params.num_obstacles_range = [0, 0]
+    def get_actions(self,
+                    actor: torch.nn.Module,
+                    obss: list[Any]) -> list[int]:
+        with torch.no_grad(), set_exploration_type(ExplorationType.DETERMINISTIC):
+            observation = []
+            vector = []
+            for obs in obss:
+                if isinstance(obs, dict):
+                    observation.append(obs['observation'])
+                    vector.append([obs['vector']])
+            observation = torch.from_numpy(np.stack(observation, axis=0)).float().to(self.device)
+            vector = torch.tensor(numpy.array(vector)).float().to(self.device)
+            actions = actor(observation=observation, vector=vector)[1].argmax(dim=-1).tolist()
+        return actions
 
-env = gym.make(
-    render_mode='rgb_array' if render else None,
-    **cfg.env.params,
-)
-if render:
-    env = HumanRendering(env)
-# reset_options = {
-#     'obstacle'
-# }
+    def get_actor(self,
+                  pt_path: str) -> torch.nn.Module:
+        actor_critic = torch.load(pt_path).to(self.device)
+        actor = actor_critic[0]
+        return actor
 
-costs = []
 
-exploration_type = ExplorationType.RANDOM if act_randomly else ExplorationType.DETERMINISTIC
-
-with set_exploration_type(exploration_type), torch.no_grad():
-    i = 0
-    failed_count = 0
-    while i < episodes:
-        obs, info = env.reset()
-        done = False
-        ret = 0.
-        max_r = -100.
-        t = 0
-        while not done:
-            if isinstance(obs, dict):
-                observation = obs['observation']
-                vector = obs['vector']
-            observation = torch.from_numpy(observation).float().to(device).unsqueeze(0)
-            vector = torch.tensor([vector]).float().to(device).unsqueeze(0)
-            # print(obs)
-            # print(observation[0, 5:8])
-            # Get Output
-            action = actor(observation=observation, vector=vector)
-            # print(action[0])
-            action = action[2].argmax()
-            action = int(action)
-            # print(action)
-            obs, reward, done, _, info = env.step(action)
-            max_r = max(max_r, reward)
-            t += 1
-            ret += 0.99 ** t * reward
-            print(f'{t:04d} | {reward:.3f}, {ret:.3f}')
-            if render:
-                env.render()
-        print(f'Max r: {max_r}')
-env.close()
-costs = np.array(costs)
-print(f'{costs.mean()} +- {costs.std()}')
-print(f'{failed_count} / {i + failed_count} = {failed_count / (i + failed_count)}')
+if __name__ == '__main__':
+    evaluator = PpoEvaluator(
+        episodes=16,
+        max_frames=4,
+        max_step=1500,
+        skip_frames=30,
+        video=True,
+        device='cpu',
+        start_idx=0,
+        ckpt_path=None,
+        # ckpt_path='../../ckpt/dqn/240901_051858_test',
+    )
+    evaluator.run()

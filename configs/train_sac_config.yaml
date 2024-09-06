@@ -6,23 +6,23 @@ seed: 42
 
 # collector
 collector:
-  total_frames: 4_000_000
+  total_frames: 2_000_000
   frames_per_batch: 20
-  num_envs: 8
+  num_envs: 32
   eps_start: 1.0
   eps_end: 0.05
-  annealing_frames: 700_000
+  annealing_frames: 1_200_000
   init_random_frames: 10_000
 #  init_random_frames: 0
 
 # buffer
 buffer:
   buffer_size: 500_000
-  batch_size: 256
+  batch_size: 2048
 
 # Optim
 optim:
-  lr: 3.0e-4
+  lr: 1.0e-5
   weight_decay: 0
   max_grad_norm: null
 
@@ -40,7 +40,4 @@ logger:
   backend: tensorboard
   model_name: SAC
   exp_name: Train
-  test_interval: 100_000
-#  test_interval: 20_000
-  test_steps: 2_000
-  video: True
+  test_interval: 50_000

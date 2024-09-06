@@ -692,7 +692,8 @@ if __name__ == "__main__":
         state_pixels=False,
         # num_obstacles_range = [0, 0]
     )
-    env: CppEnvBase = HumanRendering(env)  # 封装后，只接收render_mode="rgb_array"的env，使得step和reset的时候展示渲染图像
+    # 封装后，只接收render_mode="rgb_array"的env，使得step和reset的时候展示渲染图像
+    env: CppEnvBase = HumanRendering(env)
 
     for _ in range(episodes):
         # env.set_obstacle_range([0, 0])

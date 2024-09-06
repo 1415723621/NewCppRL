@@ -13,7 +13,7 @@ from omegaconf import DictConfig
 from torchrl._utils import logger as torchrl_logger
 from torchrl.collectors import MultiaSyncDataCollector
 from torchrl.data import LazyMemmapStorage, TensorDictPrioritizedReplayBuffer
-from torchrl.objectives import SoftUpdate, DiscreteSACLoss
+from torchrl.objectives import SoftUpdate, DiscreteSACLoss, HardUpdate
 from torchrl.record.loggers import get_logger
 
 from rl.sac.sac_utils import make_sac_models
@@ -100,6 +100,7 @@ def main(cfg: "DictConfig"):  # noqa: F821
     loss_module.make_value_estimator(gamma=cfg.loss.gamma)
 
     # Define Target Network Updater
+    # target_net_updater = HardUpdate(loss_module, value_network_update_interval=3000,)
     target_net_updater = SoftUpdate(loss_module, eps=cfg.loss.target_update_polyak)
 
     # Create the optimizer

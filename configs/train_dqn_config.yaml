@@ -36,10 +36,7 @@ loss:
 
 # logger
 logger:
-  backend: wandb
+  backend: tensorboard
   model_name: DQN
   exp_name: Train
   test_interval: 50_000
-#  test_interval: 20_000
-  test_steps: 2_000 # 这个参数似乎没有用
-  video: True

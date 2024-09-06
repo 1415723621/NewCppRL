@@ -36,5 +36,3 @@ logger:
   model_name: PPO
   exp_name: Train
   test_interval: 50_000
-  test_steps: 2_000
-  video: False
