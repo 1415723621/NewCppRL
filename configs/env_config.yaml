@@ -11,7 +11,7 @@ env:
     use_apf: True
     use_box_boundary: True
     use_traj: False
-    noise_position: 1.0
-    noise_direction: 5.0
-    noise_weed: 0.1
+    noise_position: 0
+    noise_direction: 0
+    noise_weed: 0
     map_dir: envs/maps/1-400

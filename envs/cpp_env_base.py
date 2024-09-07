@@ -50,9 +50,9 @@ class CppEnvBase(gym.Env):
             use_apf: bool = True,
             use_box_boundary: bool = True,  # 在场景外是否绘制障碍物包裹
             use_traj: bool = True,
-            noise_position: Optional[float] = 1.0,
-            noise_direction: Optional[float] = 5.0,
-            noise_weed: Optional[float] = 0.1,
+            noise_position: Optional[float] = 0.0,
+            noise_direction: Optional[float] = 0.0,
+            noise_weed: Optional[float] = 0.0,
             map_dir: str = 'envs/maps/1-400',
     ):
         super().__init__()
