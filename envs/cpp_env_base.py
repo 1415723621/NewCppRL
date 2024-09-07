@@ -50,6 +50,9 @@ class CppEnvBase(gym.Env):
             use_apf: bool = True,
             use_box_boundary: bool = True,  # 在场景外是否绘制障碍物包裹
             use_traj: bool = True,
+            noise_position: Optional[float] = 1.0,
+            noise_direction: Optional[float] = 1.0,
+            noise_weed: Optional[float] = 0.1,
             map_dir: str = 'envs/maps/1-400',
     ):
         super().__init__()
@@ -67,6 +70,9 @@ class CppEnvBase(gym.Env):
         self.use_apf = use_apf
         self.use_box_boundary = use_box_boundary
         self.use_traj = use_traj
+        self.noise_position = noise_position
+        self.noise_direction = noise_direction
+        self.noise_weed = noise_weed
         total_channels = 4 + use_traj
         obs_shape = (total_channels, *self.state_downsize)
         if use_sgcnn:
@@ -284,17 +290,32 @@ class CppEnvBase(gym.Env):
         return np.where(map_apf < eps, 0., map_apf)
 
     def get_rotated_obs_(self, maps, mask: Sequence[float]):
+        agent_y = self.agent.y
+        agent_x = self.agent.x
+        if self.noise_position:
+            delta_y = np.clip(self.np_random.normal(0, self.noise_position), -self.noise_position, self.noise_position)
+            delta_x = np.clip(self.np_random.normal(0, self.noise_position), -self.noise_position, self.noise_position)
+            agent_y += delta_y
+            agent_x += delta_x
+        agent_direction = self.agent.direction
+        if self.noise_direction:
+            delta_direction = np.clip(self.np_random.normal(0, self.noise_direction),
+                                      -self.noise_direction,
+                                      self.noise_direction)
+            agent_direction += delta_direction
+            agent_direction %= 360
+
         diag_r = self.state_size[0] / 2 * np.sqrt(2)
         diag_r_int = np.ceil(diag_r).astype(np.int32)
         maps = cv2.copyMakeBorder(maps, diag_r_int, diag_r_int, diag_r_int, diag_r_int,
                                   cv2.BORDER_CONSTANT, value=mask, )
-        leftmost = round(self.agent.y)
-        rightmost = round(self.agent.y + 2 * diag_r_int)
-        upmost = round(self.agent.x)
-        bottommost = round(self.agent.x + 2 * diag_r_int)
+        leftmost = round(agent_y)
+        rightmost = round(agent_y + 2 * diag_r_int)
+        upmost = round(agent_x)
+        bottommost = round(agent_x + 2 * diag_r_int)
         obs_cropped = maps[leftmost:rightmost, upmost:bottommost]
 
-        rotation_mat = cv2.getRotationMatrix2D((diag_r, diag_r), 180 + self.agent.direction, 1.0)
+        rotation_mat = cv2.getRotationMatrix2D((diag_r, diag_r), 180 + agent_direction, 1.0)
         dst_size = 2 * diag_r_int
         delta_leftmost = int(diag_r_int - self.state_size[0] / 2)
         delta_rightmost = delta_leftmost + self.state_size[0]
@@ -336,17 +357,32 @@ class CppEnvBase(gym.Env):
                 'weed_ratio': 1 - self.weed_num_t / self.weed_num}
 
     def get_global_obs_(self, maps, mask: Sequence[float]):
+        agent_y = self.agent.y
+        agent_x = self.agent.x
+        if self.noise_position:
+            delta_y = np.clip(self.np_random.normal(0, self.noise_position), -self.noise_position, self.noise_position)
+            delta_x = np.clip(self.np_random.normal(0, self.noise_position), -self.noise_position, self.noise_position)
+            agent_y += delta_y
+            agent_x += delta_x
+        agent_direction = self.agent.direction
+        if self.noise_direction:
+            delta_direction = np.clip(self.np_random.normal(0, self.noise_direction),
+                                      -self.noise_direction,
+                                      self.noise_direction)
+            agent_direction += delta_direction
+            agent_direction %= 360
+
         diag_r = self.dimensions[0] / 2 * np.sqrt(2)
         diag_r_int = np.ceil(diag_r).astype(np.int32)
         obs_global = cv2.copyMakeBorder(maps, diag_r_int, diag_r_int, diag_r_int, diag_r_int,
                                         cv2.BORDER_CONSTANT, value=mask, )
-        leftmost = round(self.agent.y)
-        rightmost = round(self.agent.y + 2 * diag_r_int)
-        upmost = round(self.agent.x)
-        bottommost = round(self.agent.x + 2 * diag_r_int)
+        leftmost = round(agent_y)
+        rightmost = round(agent_y + 2 * diag_r_int)
+        upmost = round(agent_x)
+        bottommost = round(agent_x + 2 * diag_r_int)
         obs_cropped = obs_global[leftmost:rightmost, upmost:bottommost]
 
-        rotation_mat = cv2.getRotationMatrix2D((diag_r, diag_r), 180 + self.agent.direction, 1.0)
+        rotation_mat = cv2.getRotationMatrix2D((diag_r, diag_r), 180 + agent_direction, 1.0)
         dst_size = 2 * diag_r_int
         delta_leftmost = int(diag_r_int - self.dimensions[0] / 2)
         delta_rightmost = delta_leftmost + self.dimensions[0]
@@ -450,18 +486,33 @@ class CppEnvBase(gym.Env):
         return rendered_map
 
     def render_self(self) -> np.ndarray:
+        agent_y = self.agent.y
+        agent_x = self.agent.x
+        if self.noise_position:
+            delta_y = np.clip(self.np_random.normal(0, self.noise_position), -self.noise_position, self.noise_position)
+            delta_x = np.clip(self.np_random.normal(0, self.noise_position), -self.noise_position, self.noise_position)
+            agent_y += delta_y
+            agent_x += delta_x
+        agent_direction = self.agent.direction
+        if self.noise_direction:
+            delta_direction = np.clip(self.np_random.normal(0, self.noise_direction),
+                                      -self.noise_direction,
+                                      self.noise_direction)
+            agent_direction += delta_direction
+            agent_direction %= 360
+
         rendered_map = self.render_map()
         diag_r = self.state_size[0] / 2 * np.sqrt(2)
         diag_r_int = np.ceil(diag_r).astype(np.int32)
         obs = cv2.copyMakeBorder(rendered_map, diag_r_int, diag_r_int, diag_r_int, diag_r_int,
                                  cv2.BORDER_CONSTANT, value=np.array((128., 128., 128.)), )
-        leftmost = round(self.agent.y)
-        rightmost = round(self.agent.y + 2 * diag_r_int)
-        upmost = round(self.agent.x)
-        bottommost = round(self.agent.x + 2 * diag_r_int)
+        leftmost = round(agent_y)
+        rightmost = round(agent_y + 2 * diag_r_int)
+        upmost = round(agent_x)
+        bottommost = round(agent_x + 2 * diag_r_int)
         obs_cropped = obs[leftmost:rightmost, upmost:bottommost, :]
 
-        rotation_mat = cv2.getRotationMatrix2D((diag_r, diag_r), 180 + self.agent.direction, 1.0)
+        rotation_mat = cv2.getRotationMatrix2D((diag_r, diag_r), 180 + agent_direction, 1.0)
         dst_size = 2 * diag_r_int
         delta_leftmost = int(diag_r_int - self.state_size[0] / 2)
         delta_rightmost = delta_leftmost + self.state_size[0]
@@ -573,6 +624,8 @@ class CppEnvBase(gym.Env):
                 cv2.fillPoly(self.map_frontier, [pts], color=(0.,))
         self.map_frontier_full = self.map_frontier  # map_frontier_full可用于获得地图的覆盖率
         self.map_weed = np.zeros((self.dimensions[1], self.dimensions[0]), dtype=np.uint8)
+        if self.noise_weed:
+            self.map_weed_noisy = np.zeros((self.dimensions[1], self.dimensions[0]), dtype=np.uint8)
         if isinstance(weed_num, float):  # 可以给比例
             weed_num = math.ceil(self.map_frontier.sum() * weed_num)
         self.weed_num = weed_num
@@ -584,6 +637,10 @@ class CppEnvBase(gym.Env):
                 if self.map_frontier[weed_y, weed_x] and not self.map_weed[weed_y, weed_x]:
                     self.map_weed[weed_y, weed_x] = 1
                     weed_count += 1
+                    if self.noise_weed:
+                        delta_x = self.np_random.integers(low=-1, high=1)
+                        delta_y = self.np_random.integers(low=-1, high=1)
+                        self.map_weed_noisy[weed_y + delta_y, weed_x + delta_x] = 1
             else:
                 weed_x = self.np_random.normal(loc=0., scale=0.35, size=weed_num - weed_count)
                 weed_y = self.np_random.normal(loc=0., scale=0.35, size=weed_num - weed_count)
@@ -595,6 +652,10 @@ class CppEnvBase(gym.Env):
                     if self.map_frontier[weed_y[i], weed_x[i]] and not self.map_weed[weed_y[i], weed_x[i]]:
                         self.map_weed[weed_y[i], weed_x[i]] = 1
                         weed_count += 1
+                        if self.noise_weed:
+                            delta_x = self.np_random.integers(low=-1, high=1)
+                            delta_y = self.np_random.integers(low=-1, high=1)
+                            self.map_weed_noisy[weed_y[i] + delta_y, weed_x[i] + delta_x] = 1
         cv2.fillPoly(self.map_weed, [self.agent.convex_hull.round().astype(np.int32)], color=(0.,))  # 小车位置boudingbox
         # map_frontier和map_mist都要进行一次step的计算
         cv2.ellipse(img=self.map_frontier,

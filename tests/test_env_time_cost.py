@@ -8,6 +8,7 @@ render = False
 env = gym.make(
     'Pasture-v2',
     render_mode='rgb_array' if render else None,
+    # use_traj=False,
     # save_pixels=False,
     # action_type="discrete",
     # sgcnn=True,

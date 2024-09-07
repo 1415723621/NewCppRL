@@ -15,11 +15,15 @@ class CppEnv(CppEnvBase):
     """
 
     def get_maps_and_mask(self) -> tuple[np.ndarray, list[float]]:
+        if self.noise_weed and self.np_random.uniform() < self.noise_weed:
+            map_weed_= self.map_weed_noisy
+        else:
+            map_weed_ = self.map_weed
         maps_list = [
             np.logical_and(self.map_frontier, self.map_mist),
             np.logical_not(self.map_mist),
             self.map_obstacle,
-            np.logical_and(self.map_weed, np.logical_not(self.map_frontier)),
+            np.logical_and(map_weed_, np.logical_not(self.map_frontier)),
         ]
         mask = [0., 0., 1., 0.]
         if self.use_traj:

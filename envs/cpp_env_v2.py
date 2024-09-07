@@ -28,9 +28,13 @@ class CppEnv(CppEnvBase):
         return np.where(map_apf < eps, 0., map_apf)
 
     def get_maps_and_mask(self) -> tuple[np.ndarray, list[float]]:
+        if self.noise_weed and self.np_random.uniform() < self.noise_weed:
+            map_weed_ = self.map_weed_noisy
+        else:
+            map_weed_ = self.map_weed
         apf_frontier = np.logical_and(total_variation_mat(self.map_frontier), self.map_mist)
         apf_obstacle = np.logical_and(total_variation_mat(self.map_obstacle), self.map_mist)
-        apf_weed = np.logical_and(self.map_weed, np.logical_not(self.map_frontier))
+        apf_weed = np.logical_and(map_weed_, np.logical_not(self.map_frontier))
         apf_trajectory = self.map_trajectory
         if self.use_apf:
             apf_frontier, is_empty = cpu_apf_bool(apf_frontier)
@@ -188,8 +192,8 @@ if __name__ == "__main__":
     episodes = 3
     env = CppEnv(
         render_mode='rgb_array' if if_render else None,
-        # state_pixels=True,
-        state_pixels=False,
+        state_pixels=True,
+        # state_pixels=False,
         # num_obstacles_range = [0,0]
     )
     env: CppEnv = HumanRendering(env)  # 封装后，只接收render_mode="rgb_array"的env，使得step和reset的时候展示渲染图像
