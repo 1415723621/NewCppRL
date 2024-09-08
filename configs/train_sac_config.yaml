@@ -1,7 +1,7 @@
 device: null
 #pretrained_model: ckpt/train/2024-08-20_04-34-49_Apf/t[01700]_r[316.39].pt
 pretrained_model: null
-ckpt_name: wd1e-4_polyak9997
+ckpt_name: no_duel
 seed: 42
 
 # collector

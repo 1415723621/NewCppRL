@@ -16,7 +16,8 @@ class DeepQNet(nn.Module):
                  hidden_dim=256,
                  action_num=15,
                  cnn_activation_class=nn.ELU,
-                 mlp_activation_class=nn.ReLU, ):
+                 mlp_activation_class=nn.ReLU,
+                 dueling_head: bool = False, ):
         super(DeepQNet, self).__init__()
         self.encoder = ConvEncoder(
             raster_shape=raster_shape,
@@ -31,8 +32,7 @@ class DeepQNet(nn.Module):
         self.q_head = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim),
             mlp_activation_class(),
-            # nn.Linear(hidden_dim, action_num),
-            DuelingHead(hidden_dim, action_num),
+            DuelingHead(hidden_dim, action_num) if dueling_head else nn.Linear(hidden_dim, action_num),
         )
 
     def forward(self, observation, vector=None):

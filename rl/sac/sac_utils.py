@@ -50,6 +50,7 @@ def make_sac_modules(proof_environment):
         action_num=num_outputs,
         cnn_activation_class=None,
         mlp_activation_class=torch.nn.SiLU,
+        dueling_head=False,
     )
     policy_module = SafeModule(
         module=policy_net,
@@ -76,6 +77,7 @@ def make_sac_modules(proof_environment):
         action_num=num_outputs,
         cnn_activation_class=None,
         mlp_activation_class=torch.nn.SiLU,
+        dueling_head=True,
     )
     qvalue_module = TensorDictModule(
         in_keys=in_keys,

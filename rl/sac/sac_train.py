@@ -13,7 +13,7 @@ from omegaconf import DictConfig
 from torchrl._utils import logger as torchrl_logger
 from torchrl.collectors import MultiaSyncDataCollector
 from torchrl.data import LazyMemmapStorage, TensorDictPrioritizedReplayBuffer
-from torchrl.objectives import SoftUpdate, DiscreteSACLoss, HardUpdate
+from torchrl.objectives import SoftUpdate, DiscreteSACLoss
 from torchrl.record.loggers import get_logger
 
 from rl.sac.sac_utils import make_sac_models

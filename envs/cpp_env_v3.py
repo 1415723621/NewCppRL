@@ -20,7 +20,8 @@ class CppEnv(CppEnvBase):
         else:
             map_weed_ = self.map_weed
         maps_list = [
-            np.logical_and(self.map_frontier, self.map_mist),
+            # np.logical_and(self.map_frontier, self.map_mist),
+            self.map_trajectory,
             np.logical_not(self.map_mist),
             self.map_obstacle,
             np.logical_and(map_weed_, np.logical_not(self.map_frontier)),

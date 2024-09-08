@@ -40,6 +40,10 @@ class CppEnv(CppEnvBase):
             apf_frontier, is_empty = cpu_apf_bool(apf_frontier)
             if not is_empty:
                 apf_frontier = self.get_discounted_apf(apf_frontier, 30)
+            apf_mist, is_empty = cpu_apf_bool(total_variation_mat(self.map_mist))
+            if not is_empty:
+                apf_mist = self.get_discounted_apf(apf_mist, 15)
+            apf_frontier = 0.8 * apf_frontier + 0.2 * apf_mist
             apf_obstacle, is_empty = cpu_apf_bool(
                 np.logical_and(np.pad(apf_obstacle,
                                       pad_width=[[1, 1], [1, 1]],
@@ -62,6 +66,7 @@ class CppEnv(CppEnvBase):
         maps_list = [
             apf_frontier,
             np.logical_not(self.map_mist),
+            # apf_trajectory,
             apf_obstacle,
             apf_weed,
         ]
@@ -82,11 +87,13 @@ class CppEnv(CppEnvBase):
         reward_apf = 0.
         if self.use_apf:
             reward_apf_frontier = 0.0 * (self.obs_apf[0][y_tp1, x_tp1] - self.obs_apf[0][y_t, x_t])
-            reward_apf_obstacle = -0.5 * self.obs_apf[2][y_tp1, x_tp1]
+            reward_apf_obstacle = 0.3 * (self.obs_apf[2][y_tp1, x_tp1] - self.obs_apf[2][y_t, x_t])
+            reward_apf_obstacle = min(0., reward_apf_obstacle)
             reward_apf_weed = 5.0 * (self.obs_apf[3][y_tp1, x_tp1] - self.obs_apf[3][y_t, x_t])
             reward_apf_traj = 0.
             if self.use_traj:
-                reward_apf_traj = -1.0 * self.obs_apf[4][y_tp1, x_tp1]
+                reward_apf_traj = 0.0 * (self.obs_apf[4][y_tp1, x_tp1] - self.obs_apf[4][y_t, x_t])
+                reward_apf_traj = min(0., reward_apf_traj)
             reward_apf = 1.0 * (reward_apf_frontier
                                 + reward_apf_obstacle
                                 + reward_apf_weed
