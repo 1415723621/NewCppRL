@@ -16,7 +16,7 @@ class CppEnv(CppEnvBase):
 
     def get_maps_and_mask(self) -> tuple[np.ndarray, list[float]]:
         if self.noise_weed and self.np_random.uniform() < self.noise_weed:
-            map_weed_= self.map_weed_noisy
+            map_weed_ = self.map_weed_noisy
         else:
             map_weed_ = self.map_weed
         maps_list = [

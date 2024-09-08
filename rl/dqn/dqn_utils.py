@@ -38,7 +38,7 @@ def make_dqn_modules(proof_environment):
         strides=(1, 1, 1),
         vec_dim=1,
         hidden_dim=512,
-        action_num=num_outputs,
+        output_num=num_outputs,
         cnn_activation_class=torch.nn.ReLU,
         mlp_activation_class=torch.nn.ReLU,
     )

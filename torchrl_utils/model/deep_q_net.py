@@ -1,4 +1,4 @@
-from typing import Sequence
+from typing import Sequence, Optional
 
 from torch import nn
 
@@ -14,10 +14,11 @@ class DeepQNet(nn.Module):
                  strides: Sequence[int] = (1, 1, 1),
                  vec_dim=14,
                  hidden_dim=256,
-                 action_num=15,
-                 cnn_activation_class=nn.ELU,
-                 mlp_activation_class=nn.ReLU,
-                 dueling_head: bool = False, ):
+                 output_num=15,
+                 cnn_activation_class: Optional[nn.Module] = nn.ELU,
+                 mlp_activation_class: Optional[nn.Module] = nn.ReLU,
+                 dueling_head: bool = False,
+                 action_head: Optional[nn.Module] = None):
         super(DeepQNet, self).__init__()
         self.encoder = ConvEncoder(
             raster_shape=raster_shape,
@@ -31,11 +32,19 @@ class DeepQNet(nn.Module):
         )
         self.q_head = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim),
-            mlp_activation_class(),
-            DuelingHead(hidden_dim, action_num) if dueling_head else nn.Linear(hidden_dim, action_num),
         )
+        if mlp_activation_class:
+            self.q_head.append(mlp_activation_class(inplace=False))
+        if dueling_head:
+            self.q_head.append(DuelingHead(hidden_dim, output_num))
+        else:
+            self.q_head.append(nn.Linear(hidden_dim, output_num))
+        # self.action_head = action_head
+        self.action_head = action_head
 
-    def forward(self, observation, vector=None):
-        embed = self.encoder(observation, vector)
+    def forward(self, observation, vector=None, action=None):
+        embed = self.encoder(observation, vector, action)
         q_values = self.q_head(embed)
+        if self.action_head:
+            q_values = self.action_head(q_values)
         return q_values

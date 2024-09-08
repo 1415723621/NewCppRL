@@ -1,4 +1,4 @@
-from typing import Sequence
+from typing import Sequence, Optional
 
 import torch
 from torch import nn
@@ -15,20 +15,21 @@ class ConvEncoder(nn.Module):
                  strides: Sequence[int] = (1, 1, 1),
                  vec_dim=14,
                  vec_out=256,
-                 cnn_activation_class=torch.nn.ELU,
-                 mlp_activation_class=torch.nn.ReLU,
+                 cnn_activation_class: Optional[torch.nn.Module] = torch.nn.ELU,
+                 mlp_activation_class: Optional[torch.nn.Module] = torch.nn.ReLU,
                  ):
         super(ConvEncoder, self).__init__()
         in_ch = raster_shape[0]
         layers = []
         for i in range(len(cnn_channels)):
-            layers += [_ConvNetBlock(
+            layers.extend([_ConvNetBlock(
                 in_ch, cnn_channels[i], kernel_size=kernel_sizes[i], stride=strides[i],
                 activation_function=cnn_activation_class,
-            )]
-            # layers += [nn.BatchNorm2d(cnn_channels[i])]
+            )])
             in_ch = cnn_channels[i]
-        layers += [mlp_activation_class(inplace=True), SquashDims()]
+        if mlp_activation_class:
+            layers.append(mlp_activation_class(inplace=False))
+        layers.append(SquashDims())
         self.cnn_encoder = torch.nn.Sequential(*layers)
         dummy_inputs = torch.ones(raster_shape)
         if dummy_inputs.ndim < 4:
@@ -36,23 +37,17 @@ class ConvEncoder(nn.Module):
         cnn_output = self.cnn_encoder(dummy_inputs)
         self.post_encoder = nn.Sequential(
             nn.Linear(vec_dim + cnn_output.size(1), vec_out),
-            mlp_activation_class(),
-            # nn.Linear(vec_out, vec_out),
-            # activation_class(),
         )
+        if mlp_activation_class:
+            self.post_encoder.append(mlp_activation_class(inplace=False))
 
-    def forward(self, observation: torch.Tensor, vector=None):
-        # if observation.ndim > 4:
-        #     ori_shape = observation.shape
-        #     observation = observation.reshape(-1, ori_shape[-3], ori_shape[-2], ori_shape[-1])
-        #     embed = self.cnn_encoder(observation)
-        #     embed = embed.reshape(list(ori_shape[:-3]) + [-1])
-        # else:
+    def forward(self, observation: torch.Tensor, vector=None, action=None):
         embed = self.cnn_encoder(observation)
+        to_be_concat = [embed]
         if vector is not None:
-            embed = torch.concatenate([
-                embed,
-                vector,
-            ], dim=-1)
+            to_be_concat.append(vector)
+        if action is not None:
+            to_be_concat.append(action)
+        embed = torch.concatenate(to_be_concat, dim=-1)
         embed = self.post_encoder(embed)
         return embed
