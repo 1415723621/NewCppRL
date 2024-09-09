@@ -77,13 +77,13 @@ class CppEnv(CppEnvBase):
                          y_tp1: int) -> float:
         reward_apf = 0.
         if self.use_apf:
-            reward_apf_frontier = 0.0 * (self.obs_apf[0][y_tp1, x_tp1] - self.obs_apf[0][y_t, x_t])
-            reward_apf_obstacle = 0.3 * (self.obs_apf[2][y_tp1, x_tp1] - self.obs_apf[2][y_t, x_t])
+            reward_apf_frontier = 0.05 * (self.obs_apf[0][y_tp1, x_tp1] - self.obs_apf[0][y_t, x_t])
+            reward_apf_obstacle = -0.05 * (self.obs_apf[2][y_tp1, x_tp1] - self.obs_apf[2][y_t, x_t])
             reward_apf_obstacle = min(0., reward_apf_obstacle)
             reward_apf_weed = 5.0 * (self.obs_apf[3][y_tp1, x_tp1] - self.obs_apf[3][y_t, x_t])
             reward_apf_traj = 0.
             if self.use_traj:
-                reward_apf_traj = 0.0 * (self.obs_apf[4][y_tp1, x_tp1] - self.obs_apf[4][y_t, x_t])
+                reward_apf_traj = -0.0 * (self.obs_apf[4][y_tp1, x_tp1] - self.obs_apf[4][y_t, x_t])
                 reward_apf_traj = min(0., reward_apf_traj)
             reward_apf = 1.0 * (reward_apf_frontier
                                 + reward_apf_obstacle
@@ -175,7 +175,6 @@ class CppEnv(CppEnvBase):
                 ).astype(np.uint8),
                 rendered_map,
             )
-        # cv2.polylines(rendered_map, self.min_area_rect, True, (0, 255, 0), 1)
         cv2.fillPoly(rendered_map, [self.agent.convex_hull.round().astype(np.int32)], color=(255, 0, 0))
         rendered_map = np.where(
             np.expand_dims(self.map_mist, axis=-1),

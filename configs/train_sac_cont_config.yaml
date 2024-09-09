@@ -6,7 +6,7 @@ seed: 42
 
 # collector
 collector:
-  total_frames: 2_000_000
+  total_frames: 4_000_000
   frames_per_batch: 20
   num_envs: 32
   init_random_frames: 50_000
