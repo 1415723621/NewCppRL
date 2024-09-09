@@ -21,7 +21,15 @@ class CppEnv(CppEnvBase):
     render_obstacle = False  # 是否渲染障碍物的扩散场
 
     @staticmethod
-    def get_discounted_apf(map_apf: np.ndarray, max_step: int, eps: Optional[float] = None) -> float:
+    def get_discounted_apf(map_apf: np.ndarray,
+                           max_step: int,
+                           eps: Optional[float] = None,
+                           pad: bool = False) -> float:
+        if pad:
+            map_apf = np.pad(map_apf,
+                             pad_width=[[1, 1], [1, 1]],
+                             mode='constant',
+                             constant_values=(1, 1))
         map_apf, is_empty = cpu_apf_bool(map_apf)
         if not is_empty:
             gamma = (max_step - 1) / max_step
@@ -29,6 +37,8 @@ class CppEnv(CppEnvBase):
             if eps is None:
                 eps = gamma ** max_step
             map_apf = np.where(map_apf < eps, 0., map_apf)
+        if pad:
+            map_apf = map_apf[1:-1, 1:-1]
         return map_apf
 
     def get_maps_and_mask(self) -> tuple[np.ndarray, list[float]]:
@@ -42,18 +52,9 @@ class CppEnv(CppEnvBase):
         apf_trajectory = self.map_trajectory
         if self.use_apf:
             apf_frontier = self.get_discounted_apf(apf_frontier, 30)
+            apf_obstacle = self.get_discounted_apf(apf_obstacle, 10, pad=True)
             apf_weed = self.get_discounted_apf(apf_weed, 40, 1e-2)
             apf_trajectory = self.get_discounted_apf(apf_trajectory, 4)
-            apf_obstacle = np.logical_and(np.pad(apf_obstacle,
-                                                 pad_width=[[1, 1], [1, 1]],
-                                                 mode='constant',
-                                                 constant_values=(1, 1)),
-                                          np.pad(self.map_mist,
-                                                 pad_width=[[1, 1], [1, 1]],
-                                                 mode='constant',
-                                                 constant_values=(1, 1)))
-            apf_obstacle = self.get_discounted_apf(apf_obstacle, 10)
-            apf_obstacle = apf_obstacle[1:-1, 1:-1]
         apf_obstacle = np.maximum(apf_obstacle, np.logical_and(self.map_obstacle, self.map_mist))
         maps_list = [
             apf_frontier,
