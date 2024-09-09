@@ -4,7 +4,7 @@ from tensordict.nn import TensorDictModule, InteractionType, NormalParamExtracto
 from torchrl.modules import (
     ProbabilisticActor,
     TanhNormal,
-    ValueOperator,
+    ValueOperator, TruncatedNormal,
 )
 
 from torchrl_utils.model.deep_q_net import DeepQNet
@@ -24,7 +24,7 @@ def make_sac_modules(proof_environment):
     distribution_kwargs = {
         "low": action_spec.space.low,
         "high": action_spec.space.high,
-        "tanh_loc": False,
+        "tanh_loc": True,
     }
     # Define input keys
     in_keys = ["observation", "vector"]
@@ -39,26 +39,13 @@ def make_sac_modules(proof_environment):
         vec_dim=1,
         hidden_dim=encoder_out_dim,
         output_num=2 * action_spec.shape[-1],
-        cnn_activation_class=torch.nn.ReLU,
-        mlp_activation_class=torch.nn.ReLU,
+        cnn_activation_class=torch.nn.SiLU,
+        mlp_activation_class=torch.nn.SiLU,
         action_head=NormalParamExtractor(
             scale_mapping=f"biased_softplus_{1.0}",
-            scale_lb=0.1,
+            scale_lb=1e-4,
         ),
     )
-    # policy_net = MLP(
-    #     in_features=1,
-    #     out_features=2 * action_spec.shape[-1],
-    #     num_cells=[],
-    #     activation_class=None,
-    # )
-    # policy_net = torch.nn.Sequential(
-    #     policy_net,
-    #     NormalParamExtractor(
-    #         scale_mapping=f"biased_softplus_{1.0}",
-    #         scale_lb=0.1,
-    #     ),
-    # )
     policy_module = TensorDictModule(
         policy_net,
         in_keys=in_keys,
@@ -81,14 +68,9 @@ def make_sac_modules(proof_environment):
         vec_dim=1 + 2,
         hidden_dim=encoder_out_dim,
         output_num=1,
-        cnn_activation_class=torch.nn.ReLU,
-        mlp_activation_class=torch.nn.ReLU,
+        cnn_activation_class=torch.nn.SiLU,
+        mlp_activation_class=torch.nn.SiLU,
     )
-    # qvalue_net = MLP(
-    #     in_features=1 + 2,
-    #     out_features=1,
-    #     num_cells=[],
-    # )
     qvalue_module = ValueOperator(
         in_keys=in_keys + ["action"],
         module=qvalue_net,

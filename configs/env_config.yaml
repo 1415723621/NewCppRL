@@ -2,7 +2,8 @@
 env:
   params:
     id: Pasture-v2
-    action_type: discrete
+#    action_type: discrete
+    action_type: continuous
     state_size: !!python/tuple [128, 128]
     state_downsize: !!python/tuple [128, 128]
     num_obstacles_range: !!python/tuple [0, 8]

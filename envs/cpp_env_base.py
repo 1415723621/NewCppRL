@@ -617,11 +617,11 @@ class CppEnvBase(gym.Env):
             if dist2player < -2.0 * MowerAgent.length:
                 current_obstacle_num += 1
                 cv2.fillPoly(self.map_obstacle, [pts], color=(1.,))
-                pts = np.array(
-                    cv2.RotatedRect(center=(o_x, o_y), size=(o_len + 15, o_wid + 15), angle=angle).points(),  # 扩了15码
-                    dtype=np.int32
-                ).reshape((-1, 1, 2))
-                cv2.fillPoly(self.map_frontier, [pts], color=(0.,))
+                # pts = np.array(
+                #     cv2.RotatedRect(center=(o_x, o_y), size=(o_len + 15, o_wid + 15), angle=angle).points(),  # 扩了15码
+                #     dtype=np.int32
+                # ).reshape((-1, 1, 2))
+                # cv2.fillPoly(self.map_frontier, [pts], color=(0.,))
         self.map_frontier_full = self.map_frontier  # map_frontier_full可用于获得地图的覆盖率
         self.map_weed = np.zeros((self.dimensions[1], self.dimensions[0]), dtype=np.uint8)
         if self.noise_weed:

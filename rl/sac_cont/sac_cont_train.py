@@ -53,10 +53,10 @@ def main(cfg: "DictConfig"):  # noqa: F821
     else:
         actor_critic = make_sac_models()
         actor_critic = actor_critic.to(device)
-    torch.save(
-        actor_critic,
-        f'{base_dir}/ckpt/{algo_name}/{ckpt_dir}/t[00000].pt'
-    )
+    # torch.save(
+    #     actor_critic,
+    #     f'{base_dir}/ckpt/{algo_name}/{ckpt_dir}/t[00000].pt'
+    # )
     actor = actor_critic[0]
     q_critic = actor_critic[1]
 
@@ -211,6 +211,10 @@ def main(cfg: "DictConfig"):  # noqa: F821
             # Update actor
             optimizer_actor.zero_grad()
             actor_loss.backward()
+            if cfg.optim.max_grad_norm:
+                torch.nn.utils.clip_grad_norm_(
+                    list(loss_module.parameters()), max_norm=cfg.optim.max_grad_norm
+                )
             optimizer_actor.step()
 
             # Update critic

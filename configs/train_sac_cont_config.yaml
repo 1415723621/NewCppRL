@@ -1,0 +1,43 @@
+device: null
+#pretrained_model: ckpt/train/2024-08-20_04-34-49_Apf/t[01700]_r[316.39].pt
+pretrained_model: null
+ckpt_name: v2_no_traj
+seed: 42
+
+# collector
+collector:
+  total_frames: 2_000_000
+  frames_per_batch: 20
+  num_envs: 32
+  init_random_frames: 50_000
+
+# buffer
+buffer:
+  buffer_size: 500_000
+  batch_size: 2048
+
+# Optim
+optim:
+  lr_critic: 3.0e-4
+  weight_decay_critic: 0
+  lr_actor: 1.0e-5
+  weight_decay_actor: 1.0e-4
+  lr_alpha: 3.0e-4
+  weight_decay_alpha: 0
+  max_grad_norm: null
+
+# loss
+loss:
+  gamma: 0.99
+  target_update_polyak: 0.9997
+  target_entropy_weight: 0.2
+  target_entropy: "auto"
+  utd_ratio: 1
+  loss_function: l2
+
+# logger
+logger:
+  backend: wandb
+  model_name: ContinuousSAC
+  exp_name: Train
+  test_interval: 50_000
