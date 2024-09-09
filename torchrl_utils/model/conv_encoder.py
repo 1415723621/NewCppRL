@@ -1,4 +1,4 @@
-from typing import Sequence, Optional
+from typing import Sequence, Optional, Type
 
 import torch
 from torch import nn
@@ -15,8 +15,8 @@ class ConvEncoder(nn.Module):
                  strides: Sequence[int] = (1, 1, 1),
                  vec_dim=14,
                  vec_out=256,
-                 cnn_activation_class: Optional[torch.nn.Module] = torch.nn.ELU,
-                 mlp_activation_class: Optional[torch.nn.Module] = torch.nn.ReLU,
+                 cnn_activation_class: Optional[Type[nn.Module]] = nn.ELU,
+                 mlp_activation_class: Optional[Type[nn.Module]] = nn.ReLU,
                  ):
         super(ConvEncoder, self).__init__()
         in_ch = raster_shape[0]

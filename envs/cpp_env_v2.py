@@ -193,8 +193,8 @@ if __name__ == "__main__":
     episodes = 3
     env = CppEnv(
         render_mode='rgb_array' if if_render else None,
-        state_pixels=True,
-        # state_pixels=False,
+        # state_pixels=True,
+        state_pixels=False,
         # num_obstacles_range = [0,0]
     )
     env: CppEnv = HumanRendering(env)  # 封装后，只接收render_mode="rgb_array"的env，使得step和reset的时候展示渲染图像

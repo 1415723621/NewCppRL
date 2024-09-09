@@ -1,4 +1,4 @@
-from typing import Sequence, Optional
+from typing import Sequence, Optional, Type
 
 from torch import nn
 
@@ -15,8 +15,8 @@ class DeepQNet(nn.Module):
                  vec_dim=14,
                  hidden_dim=256,
                  output_num=15,
-                 cnn_activation_class: Optional[nn.Module] = nn.ELU,
-                 mlp_activation_class: Optional[nn.Module] = nn.ReLU,
+                 cnn_activation_class: Optional[Type[nn.Module]] = nn.ELU,
+                 mlp_activation_class: Optional[Type[nn.Module]] = nn.ReLU,
                  dueling_head: bool = False,
                  action_head: Optional[nn.Module] = None):
         super(DeepQNet, self).__init__()
@@ -39,7 +39,6 @@ class DeepQNet(nn.Module):
             self.q_head.append(DuelingHead(hidden_dim, output_num))
         else:
             self.q_head.append(nn.Linear(hidden_dim, output_num))
-        # self.action_head = action_head
         self.action_head = action_head
 
     def forward(self, observation, vector=None, action=None):

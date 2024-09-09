@@ -4,7 +4,8 @@ from tensordict.nn import TensorDictModule, InteractionType, NormalParamExtracto
 from torchrl.modules import (
     ProbabilisticActor,
     TanhNormal,
-    ValueOperator, TruncatedNormal,
+    ValueOperator,
+    TruncatedNormal,
 )
 
 from torchrl_utils.model.deep_q_net import DeepQNet

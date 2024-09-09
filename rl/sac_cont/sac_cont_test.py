@@ -17,7 +17,7 @@ act_randomly = True
 # act_randomly = False
 
 device = 'cpu'
-pt_path = f'../../ckpt/sac_cont/2024-09-08_22-43-52_wd1e-4_polyak9997/t[00000].pt'
+pt_path = f'../../ckpt/sac_cont/2024-09-08_22-43-52_wd1e-4_polyak9997/t[01000]_r[2550.34=2516.73~2595.68].pt'
 actor_critic = torch.load(pt_path).to(device)
 actor = actor_critic[0].to(device)
 
@@ -46,6 +46,7 @@ with set_exploration_type(exploration_type), torch.no_grad():
             # Get Output
             logits = actor(observation=observation, vector=vector)
             action = logits[2][0].tolist()
+            print(action)
             obs, reward, done, _, info = env.step(action)
             t += 1
             ret += reward
