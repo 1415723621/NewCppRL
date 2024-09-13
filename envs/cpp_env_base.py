@@ -13,7 +13,7 @@ import torch.nn.functional as F
 from cpu_apf import cpu_apf_bool  # noqa
 from gymnasium.error import DependencyNotInstalled
 
-from envs.utils import get_map_pasture_larger, MowerAgent, NumericalRange, total_variation
+from envs.utils import get_map_pasture_larger, MowerAgent, NumericalRange, total_variation, total_variation_mat
 
 
 class CppEnvBase(gym.Env):
@@ -35,7 +35,10 @@ class CppEnvBase(gym.Env):
     obstacle_size_range = (10, 25)
     sgcnn_size = 16
 
-    render_repeat_times = 2  # 渲染时放缩比例
+    render_repeat_times = 1  # 渲染时放缩比例
+
+    render_tv = False
+    render_covered_weed = True
 
     def __init__(
             self,
@@ -434,54 +437,73 @@ class CppEnvBase(gym.Env):
         return np.concatenate(obs_list, axis=0, dtype=np.float32)
 
     def render_map(self) -> np.ndarray:
-        rendered_map = np.ones((self.dimensions[1], self.dimensions[0], 3), dtype=np.float32) * 255.
+        rendered_map = np.ones((self.dimensions[1], self.dimensions[0], 3), dtype=np.float32) * 255
         rendered_map = np.where(
             np.expand_dims(self.map_frontier, axis=-1),
-            np.array((255., 215., 0.)),
+            np.array((112, 173, 71)),
             rendered_map,
         )
-        mask_tv_cols = self.map_frontier[1:, :] - self.map_frontier[:-1, :] != 0
-        mask_tv_cols = np.pad(mask_tv_cols, pad_width=[[0, 1], [0, 0]], mode='constant')
-        mask_tv_rows = self.map_frontier[:, 1:] - self.map_frontier[:, :-1] != 0
-        mask_tv_rows = np.pad(mask_tv_rows, pad_width=[[0, 0], [0, 1]], mode='constant')
-        mask_tv = np.logical_or(mask_tv_rows, mask_tv_cols)
-        rendered_map = np.where(
-            np.expand_dims(mask_tv, axis=-1),
-            np.array((255., 38., 255.)),
-            rendered_map,
-        )
+        if self.render_tv:
+            mask_tv = total_variation_mat(self.map_frontier)
+            rendered_map = np.where(
+                np.expand_dims(mask_tv, axis=-1),
+                np.array((255, 38, 255)),
+                rendered_map,
+            )
         cv2.ellipse(img=rendered_map,
                     center=self.agent.position_discrete,
                     axes=(self.vision_length, self.vision_length),
                     angle=self.agent.direction,
                     startAngle=-self.vision_angle / 2,
                     endAngle=self.vision_angle / 2,
-                    color=(192., 192., 192.),
+                    color=(192, 192, 192),
                     thickness=-1,
                     )
         weed_undiscovered = get_map_pasture_larger(np.logical_and(self.map_weed, self.map_frontier))
         weed_discovered = get_map_pasture_larger(np.logical_and(self.map_weed, np.logical_not(self.map_frontier)))
         rendered_map = np.where(
             np.expand_dims(weed_undiscovered, axis=-1),
-            np.array((255., 0., 0.)),
+            np.array((56, 86, 35)),
             rendered_map,
         )
         rendered_map = np.where(
             np.expand_dims(weed_discovered, axis=-1),
-            np.array((0., 255., 0.)),
+            np.array((237, 125, 49)),
             rendered_map,
         )
         rendered_map = np.where(
             np.expand_dims(self.map_obstacle, axis=-1),
-            128.,
+            np.array((68, 114, 169)),
+            rendered_map,
+        )
+        # if self.render_tv:
+        mask_tv = total_variation_mat(self.map_obstacle)
+        rendered_map = np.where(
+            np.expand_dims(mask_tv, axis=-1),
+            np.array((47, 82, 143)),
             rendered_map,
         )
         cv2.fillPoly(rendered_map, [self.agent.convex_hull.round().astype(np.int32)], color=(255., 0., 0.))
         rendered_map = np.where(
             np.expand_dims(self.map_trajectory, axis=-1) != 0,
-            np.array((0., 255., 255.)),
+            np.array((0, 255, 255)),
             rendered_map,
         )
+        if self.render_covered_weed:
+            weed_covered = get_map_pasture_larger(
+                np.logical_and(self.map_weed_ori, np.logical_not(self.map_weed))
+            )
+            # weed_covered = get_map_pasture_larger(self.map_weed_ori)
+            # weed_covered = get_map_pasture_larger(self.map_weed)
+            rendered_map = np.where(
+                np.expand_dims(weed_covered, axis=-1),
+                (
+                        0.3 * np.array((48, 48, 48))
+                        + 0.7 * rendered_map
+                ).astype(np.uint8),
+                # np.array((255, 0, 0)),
+                rendered_map,
+            )
         # cv2.polylines(rendered_map, self.min_area_rect, True, (0, 255, 0), 1)
         return rendered_map
 
@@ -657,6 +679,9 @@ class CppEnvBase(gym.Env):
                             delta_y = self.np_random.integers(low=-1, high=1)
                             self.map_weed_noisy[weed_y[i] + delta_y, weed_x[i] + delta_x] = 1
         cv2.fillPoly(self.map_weed, [self.agent.convex_hull.round().astype(np.int32)], color=(0.,))  # 小车位置boudingbox
+        if self.render_covered_weed:
+            self.map_weed_ori = self.map_weed.copy()
+            # self.map_weed_ori = np.ones((self.dimensions[1], self.dimensions[0]), dtype=np.uint8)
         # map_frontier和map_mist都要进行一次step的计算
         cv2.ellipse(img=self.map_frontier,
                     center=self.agent.position_discrete,

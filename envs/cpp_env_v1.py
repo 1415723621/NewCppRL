@@ -33,11 +33,15 @@ if __name__ == "__main__":
     env: CppEnv = HumanRendering(env)
 
     for _ in range(episodes):
-        obs, info = env.reset(seed=120, options={
-            'weed_dist': 'gaussian',
-            # 'map_id': 80,
-            "weed_num": 100
-        })
+        # reset_state = {
+        #     'seed': 120, 'options': {
+        #         'weed_dist': 'gaussian',
+        #         # 'map_id': 80,
+        #         "weed_num": 100
+        #     }
+        # }
+        reset_state = {}
+        obs, info = env.reset(**reset_state)
         done = False
         while not done:
             action = env.action_space.sample()
