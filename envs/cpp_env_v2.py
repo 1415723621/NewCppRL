@@ -21,6 +21,7 @@ class CppEnv(CppEnvBase):
     render_mist = False
     render_tv = False
     render_covered_weed = True
+    render_covered_farmland = True
 
     @staticmethod
     def get_discounted_apf(map_apf: np.ndarray,
