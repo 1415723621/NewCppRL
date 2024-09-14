@@ -18,7 +18,7 @@ class CppEnv(CppEnvBase):
     # render_farmland_outsides = False
     # render_weed = False
     # render_obstacle = False
-    render_mist = False
+    render_mist = True
     render_tv = False
     render_covered_weed = True
     render_covered_farmland = True
@@ -102,7 +102,7 @@ class CppEnv(CppEnvBase):
             rendered_map = np.where(
                 np.expand_dims(self.map_mist, axis=-1),
                 rendered_map,
-                (rendered_map * 0.5).astype(np.uint8),
+                (rendered_map * 0.7).astype(np.uint8),
             )
         return rendered_map
     # def render_map(self) -> np.ndarray:
