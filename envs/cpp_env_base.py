@@ -499,7 +499,8 @@ class CppEnvBase(gym.Env):
         cv2.fillPoly(rendered_map, [self.agent.convex_hull.round().astype(np.int32)], color=(255., 0., 0.))
         rendered_map = np.where(
             np.expand_dims(self.map_trajectory, axis=-1) != 0,
-            np.array((0, 255, 255)),
+            # np.array((0, 255, 255)),
+            np.array((255, 38, 255)),
             rendered_map,
         )
         if self.render_covered_weed:
@@ -511,8 +512,9 @@ class CppEnvBase(gym.Env):
             rendered_map = np.where(
                 np.expand_dims(weed_covered, axis=-1),
                 (
-                        0.3 * np.array((48, 48, 48))
-                        + 0.7 * rendered_map
+                        # 0.3 * np.array((48, 48, 48))
+                        0.4 * np.array((24, 24, 24))
+                        + 0.6 * rendered_map
                 ).astype(np.uint8),
                 # np.array((255, 0, 0)),
                 rendered_map,
