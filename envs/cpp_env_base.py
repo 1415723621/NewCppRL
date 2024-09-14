@@ -442,6 +442,7 @@ class CppEnvBase(gym.Env):
         rendered_map = np.where(
             np.expand_dims(self.map_frontier, axis=-1),
             np.array((112, 173, 71)),
+            # np.array((85, 185, 80)),
             rendered_map,
         )
         if self.render_covered_farmland:
@@ -471,19 +472,21 @@ class CppEnvBase(gym.Env):
                     )
         weed_undiscovered = get_map_pasture_larger(np.logical_and(self.map_weed, self.map_frontier))
         weed_discovered = get_map_pasture_larger(np.logical_and(self.map_weed, np.logical_not(self.map_frontier)))
-        rendered_map = np.where(
+        rendered_map = np.where( # 杂草未发现
             np.expand_dims(weed_undiscovered, axis=-1),
-            np.array((56, 86, 35)),
+            # np.array((237, 125, 49)),
+            np.array((0,0,0)),
             rendered_map,
         )
-        rendered_map = np.where(
+        rendered_map = np.where( # 杂草已发现
             np.expand_dims(weed_discovered, axis=-1),
-            np.array((237, 125, 49)),
+            # np.array((237, 125, 49)),
+            np.array((255, 0, 0)),
             rendered_map,
         )
         rendered_map = np.where(
             np.expand_dims(self.map_obstacle, axis=-1),
-            np.array((68, 114, 169)),
+            np.array((30, 75, 130)),
             rendered_map,
         )
         # if self.render_tv:
