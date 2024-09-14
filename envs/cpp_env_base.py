@@ -35,10 +35,11 @@ class CppEnvBase(gym.Env):
     obstacle_size_range = (10, 25)
     sgcnn_size = 16
 
-    render_repeat_times = 1  # 渲染时放缩比例
+    render_repeat_times = 2  # 渲染时放缩比例
 
     render_tv = False
     render_covered_weed = True
+    render_covered_farmland = True
 
     def __init__(
             self,
@@ -443,6 +444,15 @@ class CppEnvBase(gym.Env):
             np.array((112, 173, 71)),
             rendered_map,
         )
+        if self.render_covered_farmland:
+            rendered_map = np.where(
+                np.expand_dims(np.logical_and(self.map_frontier_full, np.logical_not(self.map_frontier)), axis=-1),
+                (
+                        0.25 * np.array((112, 173, 7))
+                        + 0.75 * rendered_map
+                ).astype(np.uint8),
+                rendered_map,
+            )
         if self.render_tv:
             mask_tv = total_variation_mat(self.map_frontier)
             rendered_map = np.where(
@@ -644,7 +654,7 @@ class CppEnvBase(gym.Env):
                     dtype=np.int32
                 ).reshape((-1, 1, 2))
                 cv2.fillPoly(self.map_frontier, [pts], color=(0.,))
-        self.map_frontier_full = self.map_frontier  # map_frontier_full可用于获得地图的覆盖率
+        self.map_frontier_full = self.map_frontier.copy()  # map_frontier_full可用于获得地图的覆盖率
         self.map_weed = np.zeros((self.dimensions[1], self.dimensions[0]), dtype=np.uint8)
         if self.noise_weed:
             self.map_weed_noisy = np.zeros((self.dimensions[1], self.dimensions[0]), dtype=np.uint8)
