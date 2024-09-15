@@ -441,7 +441,8 @@ class CppEnvBase(gym.Env):
         rendered_map = np.ones((self.dimensions[1], self.dimensions[0], 3), dtype=np.float32) * 255
         rendered_map = np.where(
             np.expand_dims(self.map_frontier, axis=-1),
-            np.array((112, 173, 71)),
+            # np.array((112, 173, 71)),
+            np.array((76, 187, 23)),
             # np.array((85, 185, 80)),
             rendered_map,
         )
@@ -476,6 +477,7 @@ class CppEnvBase(gym.Env):
             np.expand_dims(weed_undiscovered, axis=-1),
             # np.array((237, 125, 49)),
             np.array((0,0,0)),
+            # np.array((255, 255, 0)),
             rendered_map,
         )
         rendered_map = np.where( # 杂草已发现
