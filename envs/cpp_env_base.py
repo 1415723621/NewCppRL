@@ -515,8 +515,8 @@ class CppEnvBase(gym.Env):
                 np.expand_dims(weed_covered, axis=-1),
                 (
                         # 0.3 * np.array((48, 48, 48))
-                        0.4 * np.array((24, 24, 24))
-                        + 0.6 * rendered_map
+                        0.9 * np.array((0, 0, 0))
+                        + 0.1 * rendered_map
                 ).astype(np.uint8),
                 # np.array((255, 0, 0)),
                 rendered_map,
